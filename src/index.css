@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  /* Universal accessible keyboard focus ring */
+  *:focus-visible {
+    outline: 2px solid #2dd4bf !important;
+    outline-offset: 2px !important;
+  }
+
+  /* Smooth scrolling only when reduced motion is not preferred */
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  /* Respect reduced motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* High-Contrast Field Mode */
+html.nexus-high-contrast {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+html.nexus-high-contrast .bg-\[\#0B132B\],
+html.nexus-high-contrast .bg-\[\#1C2541\],
+html.nexus-high-contrast .bg-\[\#121A30\],
+html.nexus-high-contrast .bg-\[\#0E172E\] {
+  background-color: #050505 !important;
+  border-color: #fbbf24 !important;
+}
+
+html.nexus-high-contrast button {
+  border-width: 2px !important;
+  border-color: #38bdf8 !important;
+}
+
+/* Large-Text Field Mode */
+html.nexus-large-text {
+  font-size: 110% !important;
+}
+
+html.nexus-large-text p,
+html.nexus-large-text textarea,
+html.nexus-large-text input {
+  font-size: 1.05rem !important;
+  line-height: 1.65 !important;
+}
+
+/* RTL Support for Arabic */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .space-x-reverse {
+  --tw-space-x-reverse: 1;
+}
+
+/* Hide scrollbar on mobile carousel */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Print Styles */
+@media print {
+  body {
+    background-color: white !important;
+    color: black !important;
+  }
+  .no-print, header, nav, button {
+    display: none !important;
+  }
+  .printable-plan {
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    color: black !important;
+    background: white !important;
+  }
+}

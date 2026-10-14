@@ -1,0 +1,39 @@
+{
+  "id": "/",
+  "name": "Nexus Impact AI",
+  "short_name": "NexusImpact",
+  "description": "Mobile-first AI workspace with specialized agents for research, humanitarian response, public health, human rights, and donor proposals powered by Amazon Bedrock & On-Device models.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0B132B",
+  "theme_color": "#0B132B",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "utilities", "social-impact"],
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
