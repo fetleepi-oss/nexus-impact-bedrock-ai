@@ -14,7 +14,8 @@ import {
   RefreshCw,
   Server,
   Play,
-  Activity
+  Activity,
+  AlertTriangle
 } from 'lucide-react';
 
 interface AwsStatusResponse {
@@ -64,10 +65,37 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
   const [isExecutingMcp, setIsExecutingMcp] = useState<boolean>(false);
   const [mcpResult, setMcpResult] = useState<any | null>(null);
   const [viewMcpRawJson, setViewMcpRawJson] = useState<boolean>(false);
+  const [isTestingConnection, setIsTestingConnection] = useState<boolean>(false);
+  const [connectionTestResult, setConnectionTestResult] = useState<{
+    ok: boolean;
+    message: string;
+    model?: string;
+    region?: string;
+    latencyMs?: number;
+    code?: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchStatus();
   }, []);
+
+  const handleTestConnection = async () => {
+    setIsTestingConnection(true);
+    setConnectionTestResult(null);
+    try {
+      const res = await fetch('/api/aws/test-connection', { method: 'POST' });
+      const data = await res.json();
+      setConnectionTestResult(data);
+    } catch (err: any) {
+      setConnectionTestResult({
+        ok: false,
+        message: 'Network error calling /api/aws/test-connection: ' + (err?.message || 'Failed to reach server'),
+        code: 'NETWORK_ERROR'
+      });
+    } finally {
+      setIsTestingConnection(false);
+    }
+  };
 
   const fetchStatus = async () => {
     setIsLoading(true);
@@ -303,6 +331,56 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
               Uptime: {awsStatus?.cloudWatch?.uptimeSeconds ? `${awsStatus.cloudWatch.uptimeSeconds}s` : 'Active'}
             </span>
           </div>
+        </div>
+
+        {/* Live Bedrock Connection Diagnostic */}
+        <div className="pt-2 border-t border-[#2E3C62] flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-slate-200">
+              Live Cloud Connection Test:
+            </span>
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={isTestingConnection}
+              className="px-3 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 disabled:opacity-50 text-black text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isTestingConnection ? 'animate-spin' : ''}`} />
+              <span>{isTestingConnection ? 'Testing...' : 'Test Connection'}</span>
+            </button>
+          </div>
+
+          {connectionTestResult && (
+            <div
+              className={`p-3 rounded-xl border text-xs leading-relaxed ${
+                connectionTestResult.ok
+                  ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-200'
+                  : 'bg-amber-950/50 border-amber-500/40 text-amber-200'
+              }`}
+            >
+              <div className="flex items-start gap-2">
+                {connectionTestResult.ok ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                )}
+                <div className="space-y-1">
+                  <div className="font-bold">
+                    {connectionTestResult.ok
+                      ? 'Live Bedrock Connection Verified'
+                      : 'Bedrock Not Connected'}
+                  </div>
+                  <p className="text-[11px] text-slate-300">{connectionTestResult.message}</p>
+                  {connectionTestResult.model && (
+                    <div className="text-[10px] font-mono text-slate-400">
+                      Model: {connectionTestResult.model} | Region: {connectionTestResult.region || 'us-east-1'}
+                      {connectionTestResult.latencyMs && ` | Latency: ${connectionTestResult.latencyMs}ms`}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

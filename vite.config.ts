@@ -2,16 +2,20 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig, Plugin } from 'vite';
-import { handleServerApi } from './src/serverApiHandler.ts';
 
 function nexusApiPlugin(): Plugin {
   return {
     name: 'nexus-api-plugin',
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        const handled = handleServerApi(req, res, next);
-        if (!handled) {
-          next();
+      server.middlewares.use(async (req, res, next) => {
+        try {
+          const { handleServerApi } = await import('./src/serverApiHandler.ts');
+          const handled = handleServerApi(req, res, next);
+          if (!handled) {
+            next();
+          }
+        } catch (err) {
+          next(err);
         }
       });
     },

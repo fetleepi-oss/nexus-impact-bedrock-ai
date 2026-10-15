@@ -1,0 +1,396 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import { generateDomainOutput } from './agentEngine.ts';
+
+export interface BedrockInvokeParams {
+  agentId: string;
+  userPrompt: string;
+  modelId?: string;
+}
+
+export interface BedrockInvokeResult {
+  success: boolean;
+  output: string;
+  voiceSummary: string;
+  durationMs: number;
+  usedRealBedrock: boolean;
+  isSimulated: boolean;
+  model: string;
+  region: string;
+  disclaimer: string;
+  error?: string;
+  errorCode?: string;
+}
+
+function getSystemPrompt(agentId: string): string {
+  const base = 'You are Nexus Impact AI, a specialized decision-support copilot for humanitarian field workers, epidemiologists, human rights monitors, and non-profit grant architects.';
+  switch (agentId) {
+    case 'humanitarian':
+      return `${base} You adhere to Sphere Standards (2018 Edition), IASC guidelines, and WHO emergency WASH/shelter/nutrition protocols. Provide concrete calculations (liters/day, latrines, calorie targets), operational priorities, a 72-hour action checklist, and risk mitigations. Remind the operator to verify with local civil protection authorities.`;
+    case 'public_health':
+      return `${base} You are a public health epidemiologist adhering to WHO Integrated Disease Surveillance and Response (IDSR), outbreak response algorithms, and cold-chain protocols (+2°C to +8°C). Give syndromic case definitions, transmission containment checklists, and diagnostic workflows. Never provide individual patient drug dosing; focus strictly on population-level outbreak containment.`;
+    case 'grant_proposal':
+      return `${base} You draft donor-grade funding proposals compliant with USAID/BHA, EU Civil Protection & Humanitarian Aid (ECHO), and FCDO frameworks. Provide executive summary, problem statement with demographic vulnerability baselines, theory of change, logframe indicators disaggregated by sex/age/disability, and cost-effectiveness analysis.`;
+    case 'human_rights':
+      return `${base} You follow the UN Istanbul Protocol and Berkeley Protocol on Digital Open Source Investigations. Enforce strict chain of custody, witness safety, evidentiary classification (direct/corroborating/unverified), and trauma-informed survivor-centered interviewing procedures.`;
+    case 'research':
+      return `${base} You provide systematic literature syntheses, methodological critiques, and structured evidence matrices based on peer-reviewed field evaluations, randomized controlled trials, and policy frameworks.`;
+    case 'disability_inclusion':
+      return `${base} You audit humanitarian sites against IASC Guidelines on Inclusion of Persons with Disabilities in Humanitarian Action and Washington Group questions. Provide physical barrier checklists, accessible WASH/shelter adaptations, and communication accommodations.`;
+    default:
+      return `${base} Provide structured, actionable, and verified humanitarian guidelines with open citations.`;
+  }
+}
+
+/**
+ * Creates an instance of BedrockRuntimeClient using server environment variables.
+ * AWS credentials are NEVER exposed to client-side code.
+ */
+function createBedrockClient(): { client: BedrockRuntimeClient | null; region: string; hasCreds: boolean } {
+  const region = process.env.AWS_REGION || 'us-east-1';
+  const accessKeyId = process.env.AWS_ACCESS_KEY_ID;
+  const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY;
+  const sessionToken = process.env.AWS_SESSION_TOKEN;
+
+  if (!accessKeyId || !secretAccessKey) {
+    return { client: null, region, hasCreds: false };
+  }
+
+  const client = new BedrockRuntimeClient({
+    region,
+    credentials: {
+      accessKeyId,
+      secretAccessKey,
+      ...(sessionToken ? { sessionToken } : {})
+    },
+    maxAttempts: 3 // Built-in SDK retry for throttling/transient errors
+  });
+
+  return { client, region, hasCreds: true };
+}
+
+/**
+ * Executes a prompt against Amazon Bedrock via ConverseCommand.
+ * Reads BEDROCK_MODEL_ID strictly from environment with no hardcoded fallback.
+ * Honors ALLOW_SIMULATED_RESPONSES flag.
+ */
+export async function invokeBedrock(params: BedrockInvokeParams): Promise<BedrockInvokeResult> {
+  const startTime = Date.now();
+  const configuredModel = process.env.BEDROCK_MODEL_ID?.trim() || '';
+  const modelId = params.modelId?.trim() || configuredModel;
+  const { client, region, hasCreds } = createBedrockClient();
+  const allowSimulatedResponses = process.env.ALLOW_SIMULATED_RESPONSES === 'true';
+
+  // 1. Missing model ID check
+  if (!modelId) {
+    if (allowSimulatedResponses) {
+      const simulated = generateDomainOutput(params.agentId, params.userPrompt);
+      const durationMs = Date.now() - startTime;
+      const labeledOutput = `> **[SIMULATED, not from Amazon Bedrock]**\n> BEDROCK_MODEL_ID is not configured in server environment. This answer was generated by local simulation because ALLOW_SIMULATED_RESPONSES=true.\n\n${simulated.output}`;
+      return {
+        success: true,
+        output: labeledOutput,
+        voiceSummary: simulated.voiceSummary,
+        durationMs,
+        usedRealBedrock: false,
+        isSimulated: true,
+        model: 'SIMULATED (not from Amazon Bedrock)',
+        region,
+        disclaimer: 'Simulated output. Not from Amazon Bedrock. Verify against official standards.'
+      };
+    }
+
+    return {
+      success: false,
+      output: '',
+      voiceSummary: 'Amazon Bedrock model ID is not configured.',
+      durationMs: Date.now() - startTime,
+      usedRealBedrock: false,
+      isSimulated: false,
+      model: 'Not configured',
+      region,
+      disclaimer: 'Verify with qualified human professionals before operational deployment.',
+      error: 'BEDROCK_MODEL_ID is not set in the server environment. Please configure BEDROCK_MODEL_ID (for example, "us.anthropic.claude-3-5-sonnet-20241022-v2:0") in your environment or Render dashboard. Alternatively, switch to On-device (offline) mode.',
+      errorCode: 'MISSING_BEDROCK_MODEL_ID'
+    };
+  }
+
+  // 2. Missing credentials check
+  if (!hasCreds) {
+    if (allowSimulatedResponses) {
+      const simulated = generateDomainOutput(params.agentId, params.userPrompt);
+      const durationMs = Date.now() - startTime;
+      const labeledOutput = `> **[SIMULATED, not from Amazon Bedrock]**\n> AWS cloud credentials are not configured on the server. This answer was generated by local template simulation because ALLOW_SIMULATED_RESPONSES=true.\n\n${simulated.output}`;
+      return {
+        success: true,
+        output: labeledOutput,
+        voiceSummary: simulated.voiceSummary,
+        durationMs,
+        usedRealBedrock: false,
+        isSimulated: true,
+        model: `${modelId} (SIMULATED, not from Amazon Bedrock)`,
+        region,
+        disclaimer: 'Simulated output. Not from Amazon Bedrock. Verify against official standards.'
+      };
+    }
+
+    return {
+      success: false,
+      output: '',
+      voiceSummary: 'Amazon Bedrock credentials are not configured.',
+      durationMs: Date.now() - startTime,
+      usedRealBedrock: false,
+      isSimulated: false,
+      model: modelId,
+      region,
+      disclaimer: 'Verify with qualified human professionals before operational deployment.',
+      error: 'Amazon Bedrock credentials (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) are not set in the server environment. Please configure these in your host dashboard, or switch to On-device (offline) mode.',
+      errorCode: 'MISSING_AWS_CREDENTIALS'
+    };
+  }
+
+  // 3. Live Amazon Bedrock call with ConverseCommand
+  try {
+    const systemPrompt = getSystemPrompt(params.agentId);
+    const maxTokensCap = Math.min(2048, Math.max(256, parseInt(process.env.MAX_TOKENS_CAP || '2048', 10)));
+    const timeoutMs = parseInt(process.env.REQUEST_TIMEOUT_MS || '25000', 10);
+
+    // Exponential backoff retry loop for throttling
+    let lastError: any = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const command = new ConverseCommand({
+          modelId,
+          messages: [
+            {
+              role: 'user',
+              content: [{ text: params.userPrompt }]
+            }
+          ],
+          system: [{ text: systemPrompt }],
+          inferenceConfig: {
+            maxTokens: maxTokensCap,
+            temperature: 0.3
+          }
+        });
+
+        // Request timeout protection
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Bedrock request timed out after ${timeoutMs}ms`)), timeoutMs)
+        );
+
+        const response: any = await Promise.race([client!.send(command), timeoutPromise]);
+        const durationMs = Date.now() - startTime;
+
+        let responseText = '';
+        if (response.output?.message?.content && response.output.message.content.length > 0) {
+          responseText = response.output.message.content
+            .map((block: any) => block.text || '')
+            .join('\n')
+            .trim();
+        }
+
+        if (!responseText) {
+          responseText = 'Bedrock returned an empty response. Verify model access permissions in AWS Bedrock console.';
+        }
+
+        // Voice summary: take the first sentence or up to 200 chars
+        const firstPeriod = responseText.indexOf('.');
+        const voiceSummary =
+          firstPeriod > 10 && firstPeriod < 250
+            ? responseText.slice(0, firstPeriod + 1).replace(/[#*`]/g, '').trim()
+            : responseText.slice(0, 180).replace(/[#*`]/g, '').trim() + '...';
+
+        return {
+          success: true,
+          output: responseText,
+          voiceSummary,
+          durationMs,
+          usedRealBedrock: true,
+          isSimulated: false,
+          model: modelId,
+          region,
+          disclaimer: 'AI-generated operational support. Verify all clinical and logistical numbers with qualified human professionals.'
+        };
+      } catch (err: any) {
+        lastError = err;
+        const isThrottling = err?.name === 'ThrottlingException' || err?.$metadata?.httpStatusCode === 429;
+        if (isThrottling && attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 600));
+          continue;
+        }
+        break;
+      }
+    }
+
+    throw lastError;
+  } catch (err: any) {
+    const durationMs = Date.now() - startTime;
+    const sanitizedMsg = sanitizeErrorMessage(err, modelId, region);
+
+    return {
+      success: false,
+      output: '',
+      voiceSummary: 'Bedrock request failed: ' + sanitizedMsg.userMessage,
+      durationMs,
+      usedRealBedrock: false,
+      isSimulated: false,
+      model: modelId,
+      region,
+      disclaimer: 'Verify with qualified human professionals before operational deployment.',
+      error: sanitizedMsg.userMessage,
+      errorCode: sanitizedMsg.code
+    };
+  }
+}
+
+/**
+ * Tests connection to Amazon Bedrock with a minimal ping prompt.
+ * Never leaks secret keys or auth headers.
+ */
+export async function testBedrockConnection(): Promise<{
+  ok: boolean;
+  message: string;
+  region: string;
+  model: string;
+  latencyMs?: number;
+  code?: string;
+}> {
+  const configuredModel = process.env.BEDROCK_MODEL_ID?.trim() || '';
+  const { client, region, hasCreds } = createBedrockClient();
+
+  if (!configuredModel) {
+    return {
+      ok: false,
+      message: 'BEDROCK_MODEL_ID is not configured. Set BEDROCK_MODEL_ID in server environment (e.g. us.anthropic.claude-3-5-sonnet-20241022-v2:0).',
+      region,
+      model: '',
+      code: 'MISSING_BEDROCK_MODEL_ID'
+    };
+  }
+
+  if (!hasCreds) {
+    return {
+      ok: false,
+      message: 'AWS credentials not configured. Set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in server environment.',
+      region,
+      model: configuredModel,
+      code: 'MISSING_AWS_CREDENTIALS'
+    };
+  }
+
+  const startTime = Date.now();
+  try {
+    const command = new ConverseCommand({
+      modelId: configuredModel,
+      messages: [
+        {
+          role: 'user',
+          content: [{ text: 'Respond with exactly the single word "READY".' }]
+        }
+      ],
+      inferenceConfig: {
+        maxTokens: 10,
+        temperature: 0.1
+      }
+    });
+
+    const response = await client!.send(command);
+    const latencyMs = Date.now() - startTime;
+    const replyText = response.output?.message?.content?.[0]?.text?.trim() || 'OK';
+
+    return {
+      ok: true,
+      message: `Connection successful. Bedrock responded in ${latencyMs}ms (${replyText}).`,
+      region,
+      model: configuredModel,
+      latencyMs
+    };
+  } catch (err: any) {
+    const sanitized = sanitizeErrorMessage(err, configuredModel, region);
+    return {
+      ok: false,
+      message: sanitized.userMessage,
+      region,
+      model: configuredModel,
+      code: sanitized.code
+    };
+  }
+}
+
+/**
+ * Transforms raw AWS exceptions into safe, user-friendly messages.
+ * Catches on-demand throughput errors and guides user to regional inference profiles.
+ * Strips all secrets, authorization tokens, or internal trace paths.
+ */
+function sanitizeErrorMessage(err: any, modelId: string, region: string): { userMessage: string; code: string } {
+  const errName = err?.name || '';
+  const errMsg = String(err?.message || '');
+
+  // Specific check for on-demand throughput or inference profile requirements
+  if (
+    errMsg.includes("on-demand throughput isn't supported") ||
+    errMsg.includes('on-demand throughput is not supported') ||
+    errMsg.includes('inference profile') ||
+    errMsg.includes('inference-profile') ||
+    errMsg.includes('regional profile')
+  ) {
+    return {
+      userMessage: `Amazon Bedrock requires a regional inference-profile ID for '${modelId}'. Direct on-demand throughput is not supported for this bare model ID. Please enable model access in the AWS Bedrock Console ('Model access' menu), and set BEDROCK_MODEL_ID to the regional inference profile ID (for example, prefix with 'us.' like 'us.anthropic.claude-3-5-sonnet-20241022-v2:0').`,
+      code: 'INFERENCE_PROFILE_REQUIRED'
+    };
+  }
+
+  if (errName === 'AccessDeniedException' || errMsg.includes('AccessDenied') || errMsg.includes('not authorized') || errMsg.includes('model access')) {
+    return {
+      userMessage: `AWS IAM Access Denied or model access not granted for '${modelId}' in region '${region}'. Please open the AWS Bedrock Console ('Model access' page) to request and enable model access. Ensure your IAM user has 'bedrock:InvokeModel' permission. If using Claude 3.5 Sonnet, remember to use a regional inference profile ID (e.g. prefix with 'us.').`,
+      code: 'AWS_ACCESS_DENIED'
+    };
+  }
+
+  if (errName === 'ResourceNotFoundException' || errMsg.includes('ResourceNotFound') || errMsg.includes('model is not available')) {
+    return {
+      userMessage: `Model '${modelId}' was not found in AWS region '${region}'. Check that model access is granted in the AWS Bedrock Console, and verify your BEDROCK_MODEL_ID and AWS_REGION settings (try using a regional inference-profile ID prefixed with 'us.').`,
+      code: 'MODEL_NOT_FOUND'
+    };
+  }
+
+  if (errName === 'ValidationException' || errMsg.includes('ValidationException')) {
+    return {
+      userMessage: `Amazon Bedrock validation error for model '${modelId}'. If on-demand throughput isn't supported, verify model access in the Bedrock console and try the regional inference profile ID (for example, prefix with 'us.'). Details: ${errMsg.replace(/AKIA[0-9A-Z]{16}/g, '[REDACTED]')}`,
+      code: 'VALIDATION_EXCEPTION'
+    };
+  }
+
+  if (errName === 'ThrottlingException' || err?.$metadata?.httpStatusCode === 429) {
+    return {
+      userMessage: `Amazon Bedrock rate limit exceeded (throttling in ${region}). The server retried with exponential backoff. Please wait a moment and try again.`,
+      code: 'BEDROCK_THROTTLED'
+    };
+  }
+
+  if (errName === 'UnrecognizedClientException' || errMsg.includes('security token included in the request is invalid')) {
+    return {
+      userMessage: `AWS credentials invalid or unrecognized. Verify AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in your host settings.`,
+      code: 'INVALID_CREDENTIALS'
+    };
+  }
+
+  if (errMsg.includes('ENOTFOUND') || errMsg.includes('EAI_AGAIN') || errMsg.includes('timeout')) {
+    return {
+      userMessage: `Network timeout connecting to AWS Bedrock in ${region}. Please verify network connectivity and AWS_REGION.`,
+      code: 'NETWORK_TIMEOUT'
+    };
+  }
+
+  // Generic sanitized fallback
+  const cleanMsg = errMsg.replace(/AKIA[0-9A-Z]{16}/g, '[REDACTED]').slice(0, 250);
+  return {
+    userMessage: `Bedrock service returned an error (${errName || 'Error'}): ${cleanMsg || 'Request could not be processed.'}`,
+    code: errName || 'BEDROCK_ERROR'
+  };
+}

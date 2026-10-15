@@ -880,7 +880,6 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         modelLabel = 'On-device (offline, lower accuracy)';
         isOfflineOnDevice = true;
       } else {
-        // Online flow: try server-side endpoint (Cloud Bedrock)
         try {
           const res = await fetch('/api/agent/generate', {
             method: 'POST',
@@ -893,25 +892,25 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             })
           });
 
-          if (res.ok) {
-            const data = await res.json();
-            if (data.success && data.output) {
-              outputText = data.output;
-              usedRealBedrock = Boolean(data.usedRealBedrock);
-              modelLabel = 'Cloud (Bedrock)';
-              trackDataUsage(promptToSend.length + data.output.length);
-            }
+          const data = await res.json().catch(() => null);
+          if (res.ok && data?.success && data?.output) {
+            outputText = data.output;
+            usedRealBedrock = Boolean(data.usedRealBedrock);
+            modelLabel = data.model || selectedModel;
+            trackDataUsage(promptToSend.length + data.output.length);
+          } else if (data && !data.success && data.error) {
+            outputText = `### Cloud Inference Notice: ${data.errorCode === 'MISSING_AWS_CREDENTIALS' ? 'Amazon Bedrock Not Configured' : 'Amazon Bedrock Error'}\n\n${data.error}\n\n---\n**What to do next:**\n* **Render Deployment:** Add \`AWS_ACCESS_KEY_ID\`, \`AWS_SECRET_ACCESS_KEY\`, and \`BEDROCK_MODEL_ID\` in your Render Dashboard environment variables.\n* **Offline Use:** Check **"Keep strictly on-device"** above or turn on Airplane Mode to use the bundled on-device knowledge pack.\n* **Local Simulation:** Set \`ALLOW_SIMULATED_RESPONSES=true\` in your server \`.env\` file if you wish to preview mock templates without cloud credentials.`;
+            usedRealBedrock = false;
+            modelLabel = `${data.model || selectedModel} (Not Configured)`;
+          } else {
+            outputText = `### Server Connection Notice\n\nUnable to reach Amazon Bedrock server endpoint. Please verify server status on the Technical page or switch to On-device (offline) mode for instant guidance.`;
+            usedRealBedrock = false;
+            modelLabel = selectedModel;
           }
-        } catch {
-          // Server fetch failed, use instant domain fallback engine
-        }
-
-        // Fallback domain engine if server was silent
-        if (!outputText) {
-          const generated = generateDomainOutput(agent.id, promptToSend);
-          outputText = generated.output;
+        } catch (fetchErr: any) {
+          outputText = `### Network Connection Notice\n\nCould not reach the server API: ${fetchErr?.message || 'Network disconnected'}.\n\n**Next step:** Switch to On-device (offline) mode to continue without an active internet connection.`;
           usedRealBedrock = false;
-          modelLabel = 'Cloud (Bedrock)';
+          modelLabel = 'Cloud (Bedrock - Offline)';
         }
       }
 

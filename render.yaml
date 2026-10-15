@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: nexus-impact-ai
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      - key: UNLOCK_ALL_AGENTS
+        value: "true"
+      - key: ALLOW_SIMULATED_RESPONSES
+        value: "false"
+      - key: DAILY_REQUEST_CAP
+        value: "200"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "10"
+      - key: RATE_LIMIT_PER_DAY
+        value: "60"
+      - key: MAX_INPUT_LENGTH
+        value: "10000"
+      - key: MAX_TOKENS_CAP
+        value: "2048"
+      - key: REQUEST_TIMEOUT_MS
+        value: "25000"
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: BEDROCK_MODEL_ID
+        sync: false
+      - key: MCP_PROTOCOL_VERSION
+        value: "2025-11-25"

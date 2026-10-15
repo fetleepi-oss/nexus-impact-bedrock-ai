@@ -96,9 +96,8 @@ export async function initializeOnDeviceModel(): Promise<boolean> {
   });
 
   try {
-    // Dynamic runtime import with vite-ignore so bundler does not error if package is edge-loaded
-    const pkgName = '@huggingface/transformers';
-    const { pipeline, env } = await import(/* @vite-ignore */ pkgName);
+    // Dynamic runtime import bundled by Vite
+    const { pipeline, env } = await import('@huggingface/transformers');
     env.allowLocalModels = false;
     env.useBrowserCache = true;
 

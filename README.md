@@ -97,15 +97,52 @@ npm run dev
 
 | Variable | Description | Default | Required? |
 |:---|:---|:---:|:---:|
-| `DEMO_MODE` | Unlocks all 7 Pro agents and unlimited usage for judges | `true` | Recommended |
+| `UNLOCK_ALL_AGENTS` | Unlocks all 7 Pro agents and bypasses tier paywalls | `true` | Recommended |
+| `ALLOW_SIMULATED_RESPONSES` | If true, returns marked simulated answers when Bedrock fails. If false (default), returns clear actionable error | `false` | Optional |
+| `BEDROCK_MODEL_ID` | Amazon Bedrock Model or Inference Profile ID (e.g. `us.anthropic.claude-3-5-sonnet-20241022-v2:0`) | `""` | Required for Cloud |
 | `AWS_REGION` | AWS Region for Amazon Bedrock API calls | `us-east-1` | Optional |
-| `AWS_ACCESS_KEY_ID` | AWS IAM Access Key ID (Server-Side Only) | `""` | Optional (Demo Mode active if omitted) |
-| `AWS_SECRET_ACCESS_KEY` | AWS IAM Secret Access Key (Server-Side Only) | `""` | Optional (Demo Mode active if omitted) |
-| `BEDROCK_MODEL_ID` | Amazon Bedrock Model Identifier | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Optional |
+| `AWS_ACCESS_KEY_ID` | AWS IAM Access Key ID (Server-Side Only) | `""` | Required for Cloud |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM Secret Access Key (Server-Side Only) | `""` | Required for Cloud |
+| `RATE_LIMIT_PER_MINUTE` | Per-IP sliding-window rate limit per minute | `10` | Optional |
+| `RATE_LIMIT_PER_DAY` | Per-IP sliding-window rate limit per 24h | `60` | Optional |
+| `DAILY_REQUEST_CAP` | Global daily request cap across all users | `200` | Optional |
+| `MAX_INPUT_LENGTH` | Maximum characters accepted per agent request | `10000` | Optional |
+| `MAX_TOKENS_CAP` | Maximum generation tokens per Bedrock Converse call | `2048` | Optional |
 | `PORT` | Local web and MCP server port | `3000` | Optional |
-| `APP_URL` | Self-referencing URL for origin verification | `http://localhost:3000` | Optional |
 
 > **Security Rule**: AWS credentials are **strictly server-side**. No access keys or secrets are ever bundled or transmitted to the browser client.
+
+---
+
+## Deploy on Render (Production Long-Running Node Host)
+
+Nexus Impact AI includes a production-ready `render.yaml` specification configured for Render web services:
+
+### Option 1: Automatic Blueprint Deployment
+1. Push this repository to your GitHub account.
+2. In the [Render Dashboard](https://dashboard.render.com), click **New +** &rarr; **Blueprint**.
+3. Select your repository. Render automatically reads `render.yaml` and prepares the web service.
+4. Fill in your secret environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `BEDROCK_MODEL_ID`.
+5. Click **Apply**.
+
+### Option 2: Manual Web Service Configuration
+If creating a Web Service manually in Render:
+- **Environment / Runtime**: `Node`
+- **Node Version**: `22` (or set `NODE_VERSION=22`)
+- **Build Command**: `npm install --include=dev && npm run build`
+- **Start Command**: `npm start` (runs `node server.js`)
+- **Health Check Path**: `/api/health`
+- **Environment Variables**:
+  - `NODE_ENV`: `production`
+  - `AWS_REGION`: `us-east-1`
+  - `AWS_ACCESS_KEY_ID`: `[Your AWS Access Key ID]`
+  - `AWS_SECRET_ACCESS_KEY`: `[Your AWS Secret Access Key]`
+  - `BEDROCK_MODEL_ID`: `us.anthropic.claude-3-5-sonnet-20241022-v2:0`
+  - `UNLOCK_ALL_AGENTS`: `true`
+  - `ALLOW_SIMULATED_RESPONSES`: `false`
+  - `MCP_PROTOCOL_VERSION`: `2025-11-25`
+
+Render automatically sets `PORT` and manages TLS/HTTPS certificates. Once deployed, verify your instance by clicking **"Test Connection"** on the Technical Architecture page or opening `/selftest`.
 
 ---
 

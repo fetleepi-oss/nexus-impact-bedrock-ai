@@ -77,26 +77,31 @@ export function incrementDailyUsage(): number {
   }
 }
 
+const STORAGE_KEY_UNLOCK_ALL_AGENTS = 'nexus_unlock_all_agents_v1';
+
 /**
- * Checks whether Hackathon Demo Mode is active.
- * Defaults to true for judges and reviewers.
+ * Checks whether UNLOCK_ALL_AGENTS is active (removes free/pro limit paywall).
+ * Defaults to true for evaluation.
  */
-export function isDemoModeActive(): boolean {
+export function isUnlockAllAgentsActive(): boolean {
   if (typeof window === 'undefined') return true;
-  const stored = localStorage.getItem(STORAGE_KEY_DEMO_MODE);
+  const stored = localStorage.getItem(STORAGE_KEY_UNLOCK_ALL_AGENTS);
   if (stored !== null) {
     return stored === 'true';
   }
-  // Default to true for judge evaluation
   return true;
 }
 
-export function setDemoMode(active: boolean): void {
+export function setUnlockAllAgents(active: boolean): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(STORAGE_KEY_DEMO_MODE, active ? 'true' : 'false');
-  window.dispatchEvent(new CustomEvent('nexus_demo_mode_updated', { detail: { isDemoMode: active } }));
+  localStorage.setItem(STORAGE_KEY_UNLOCK_ALL_AGENTS, active ? 'true' : 'false');
+  window.dispatchEvent(new CustomEvent('nexus_unlock_all_updated', { detail: { isUnlocked: active } }));
   window.dispatchEvent(new CustomEvent('nexus_entitlement_updated', { detail: { isPro: active || isProEntitled() } }));
 }
+
+// Backwards-compatible aliases for UNLOCK_ALL_AGENTS
+export const isDemoModeActive = isUnlockAllAgentsActive;
+export const setDemoMode = setUnlockAllAgents;
 
 /**
  * Checks whether the user has active "pro" entitlement (or Demo Mode is active)

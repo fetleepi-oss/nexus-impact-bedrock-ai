@@ -4,36 +4,119 @@
  */
 
 import { generateDomainOutput } from './agentEngine.ts';
+import { invokeBedrock, testBedrockConnection } from './bedrockService.ts';
 
-// In-memory sliding-window rate limiter (60 requests per minute per IP)
-const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW_MS = 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 60;
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = rateLimitMap.get(ip);
-  if (!record || now > record.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
-    return true;
-  }
-  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
-    return false;
-  }
-  record.count += 1;
-  return true;
+// Configurable Rate & Cost Limits
+function getRateLimits() {
+  return {
+    perMinute: parseInt(process.env.RATE_LIMIT_PER_MINUTE || '10', 10),
+    perDay: parseInt(process.env.RATE_LIMIT_PER_DAY || '60', 10),
+    dailyCap: parseInt(process.env.DAILY_REQUEST_CAP || '200', 10),
+    maxInputLength: parseInt(process.env.MAX_INPUT_LENGTH || '10000', 10),
+  };
 }
 
-// Clean up stale rate-limit entries every 5 minutes
+// In-memory sliding-window rate limiter per IP
+const ipLimitMap = new Map<string, { minuteCount: number; minuteReset: number; dayCount: number; dayReset: number }>();
+
+// Global daily cap tracking (resets daily UTC)
+let globalDayDate = new Date().toISOString().split('T')[0];
+let globalDailyCount = 0;
+
+function checkGlobalDailyCap(): { allowed: boolean; remaining: number } {
+  const today = new Date().toISOString().split('T')[0];
+  if (today !== globalDayDate) {
+    globalDayDate = today;
+    globalDailyCount = 0;
+  }
+  const { dailyCap } = getRateLimits();
+  if (globalDailyCount >= dailyCap) {
+    return { allowed: false, remaining: 0 };
+  }
+  return { allowed: true, remaining: dailyCap - globalDailyCount };
+}
+
+function incrementGlobalDailyCount(): void {
+  const today = new Date().toISOString().split('T')[0];
+  if (today !== globalDayDate) {
+    globalDayDate = today;
+    globalDailyCount = 0;
+  }
+  globalDailyCount++;
+}
+
+function checkIpRateLimits(ip: string): { allowed: boolean; reason?: string } {
+  const now = Date.now();
+  const { perMinute, perDay } = getRateLimits();
+  let record = ipLimitMap.get(ip);
+
+  if (!record) {
+    record = {
+      minuteCount: 0,
+      minuteReset: now + 60 * 1000,
+      dayCount: 0,
+      dayReset: now + 24 * 60 * 60 * 1000,
+    };
+    ipLimitMap.set(ip, record);
+  }
+
+  // Reset minute window if expired
+  if (now > record.minuteReset) {
+    record.minuteCount = 0;
+    record.minuteReset = now + 60 * 1000;
+  }
+
+  // Reset day window if expired
+  if (now > record.dayReset) {
+    record.dayCount = 0;
+    record.dayReset = now + 24 * 60 * 60 * 1000;
+  }
+
+  if (record.minuteCount >= perMinute) {
+    return { allowed: false, reason: `Rate limit exceeded (maximum ${perMinute} requests/minute per IP). Please wait a moment.` };
+  }
+
+  if (record.dayCount >= perDay) {
+    return { allowed: false, reason: `Daily limit reached for your IP (maximum ${perDay} requests/day). Please try again tomorrow.` };
+  }
+
+  record.minuteCount++;
+  record.dayCount++;
+  return { allowed: true };
+}
+
+// Clean up stale IP rate-limit entries every 10 minutes (unref prevents blocking process exit)
 if (typeof setInterval !== 'undefined') {
-  setInterval(() => {
+  const cleanupTimer = setInterval(() => {
     const now = Date.now();
-    for (const [ip, rec] of rateLimitMap.entries()) {
-      if (now > rec.resetTime) {
-        rateLimitMap.delete(ip);
+    for (const [ip, rec] of ipLimitMap.entries()) {
+      if (now > rec.dayReset) {
+        ipLimitMap.delete(ip);
       }
     }
-  }, 5 * 60 * 1000);
+  }, 10 * 60 * 1000);
+  cleanupTimer.unref?.();
+}
+
+/**
+ * Universal JSON body parser that safely handles both Express pre-parsed req.body
+ * and raw Node.js / Vite middleware incoming request streams.
+ */
+function parseRequestBody(req: any, callback: (body: any) => void) {
+  if (req.body && typeof req.body === 'object') {
+    return callback(req.body);
+  }
+  let bodyStr = '';
+  req.on('data', (chunk: any) => {
+    bodyStr += chunk;
+  });
+  req.on('end', () => {
+    try {
+      callback(JSON.parse(bodyStr || '{}'));
+    } catch {
+      callback({});
+    }
+  });
 }
 
 export function handleServerApi(req: any, res: any, next?: any): boolean {
@@ -56,27 +139,17 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
     return true;
   }
 
-  // Rate Limiting on API endpoints
-  if (url.startsWith('/api/') || url === '/mcp') {
-    if (!checkRateLimit(String(clientIp))) {
-      res.statusCode = 429;
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Retry-After', '60');
-      res.end(JSON.stringify({
-        error: 'Too many requests. Please wait a moment before sending more queries.',
-        code: 429
-      }));
-      return true;
-    }
-  }
-
-  // 1. Health check route
+  // 1. Health check route (Reads model ID from environment, never exposes secrets)
   if (url === '/api/health' && req.method === 'GET') {
     res.setHeader('Content-Type', 'application/json');
     const hasAwsCreds = Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY);
     const hasGuardrails = Boolean(process.env.BEDROCK_GUARDRAIL_ID);
     const uptimeSec = Math.floor(process.uptime ? process.uptime() : 0);
     const memoryMb = process.memoryUsage ? Math.round(process.memoryUsage().rss / (1024 * 1024)) : 0;
+    const modelId = process.env.BEDROCK_MODEL_ID?.trim() || '';
+    const region = process.env.AWS_REGION || 'us-east-1';
+    const limits = getRateLimits();
+    const globalCapCheck = checkGlobalDailyCap();
 
     res.end(JSON.stringify({
       status: 'ok',
@@ -84,12 +157,22 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
       timestamp: new Date().toISOString(),
       uptimeSeconds: uptimeSec,
       memoryUsageMb: memoryMb,
-      demoMode: process.env.DEMO_MODE === 'true',
-      bedrockConfigured: hasAwsCreds,
+      bedrockConfigured: hasAwsCreds && Boolean(modelId),
+      bedrockModelId: modelId,
+      region,
+      unlockAllAgents: process.env.UNLOCK_ALL_AGENTS === 'true',
+      allowSimulatedResponses: process.env.ALLOW_SIMULATED_RESPONSES === 'true',
       guardrailsEnabled: hasGuardrails,
       mcpProtocolVersion: '2025-11-25',
+      costProtection: {
+        rateLimitPerMinute: limits.perMinute,
+        rateLimitPerDay: limits.perDay,
+        dailyRequestCap: limits.dailyCap,
+        dailyRequestsRemaining: globalCapCheck.remaining,
+        maxInputLength: limits.maxInputLength
+      },
       storagePolicy: 'essential_local_only',
-      loggingPolicy: 'zero_prompt_logging_privacy_enforced'
+      loggingPolicy: 'this app does not log prompt text; Render and AWS keep their own infrastructure logs, and online requests are processed by Amazon Bedrock'
     }));
     return true;
   }
@@ -102,7 +185,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
     const guardrailId = process.env.BEDROCK_GUARDRAIL_ID || null;
     const guardrailVersion = process.env.BEDROCK_GUARDRAIL_VERSION || 'DRAFT';
     const region = process.env.AWS_REGION || 'us-east-1';
-    const defaultModel = process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+    const configuredModel = process.env.BEDROCK_MODEL_ID?.trim() || '';
 
     const uptimeSec = Math.floor(process.uptime ? process.uptime() : 0);
     const memoryMb = process.memoryUsage ? Math.round(process.memoryUsage().rss / (1024 * 1024)) : 0;
@@ -110,9 +193,10 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
     res.end(JSON.stringify({
       status: 'active',
       hasCredentials: hasAwsCreds,
-      isDemoMode: process.env.DEMO_MODE === 'true',
+      configuredModel,
       region,
-      defaultModel,
+      unlockAllAgents: process.env.UNLOCK_ALL_AGENTS === 'true',
+      allowSimulatedResponses: process.env.ALLOW_SIMULATED_RESPONSES === 'true',
       guardrails: {
         configured: hasGuardrails,
         guardrailId: guardrailId ? `${guardrailId.slice(0, 4)}...${guardrailId.slice(-3)}` : null,
@@ -123,32 +207,32 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
       },
       supportedModels: [
         {
-          id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-          name: 'Anthropic Claude 3.5 Sonnet v2',
-          provider: 'Anthropic on Amazon Bedrock',
-          description: 'Benchmark leader for complex humanitarian logframes, legal analysis, and clinical protocols.',
+          id: configuredModel || 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+          name: configuredModel || 'Configured Amazon Bedrock Model',
+          provider: 'Amazon Bedrock Runtime',
+          description: 'Configured model ID read from BEDROCK_MODEL_ID.',
           isDefault: true,
+        },
+        {
+          id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
+          name: 'Anthropic Claude 3.5 Sonnet v2 (US Regional Profile)',
+          provider: 'Anthropic on Amazon Bedrock',
+          description: 'Benchmark leader for complex humanitarian logframes and clinical triage.',
+          isDefault: configuredModel === 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
         },
         {
           id: 'amazon.nova-pro-v1:0',
           name: 'Amazon Nova Pro',
           provider: 'Amazon Bedrock Foundation Model',
           description: 'State-of-the-art multimodal reasoning and high-throughput document synthesis.',
-          isDefault: false,
+          isDefault: configuredModel === 'amazon.nova-pro-v1:0',
         },
         {
           id: 'amazon.nova-micro-v1:0',
           name: 'Amazon Nova Micro',
           provider: 'Amazon Bedrock Foundation Model',
-          description: 'Ultra-fast, lowest-latency text model optimized for low-bandwidth field edge devices.',
-          isDefault: false,
-        },
-        {
-          id: 'meta.llama3-70b-instruct-v1:0',
-          name: 'Meta Llama 3 70B Instruct',
-          provider: 'Meta on Amazon Bedrock',
-          description: 'Open weights powerhouse deployed via managed Bedrock infrastructure.',
-          isDefault: false,
+          description: 'Ultra-low latency model engineered for mobile triage on constrained bandwidth.',
+          isDefault: configuredModel === 'amazon.nova-micro-v1:0',
         },
       ],
       mcpTools: [
@@ -157,7 +241,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
         { name: 'public_health_epidemiology', description: 'Epidemiological outbreak intelligence' },
         { name: 'grant_proposal_architect', description: 'Donor-grade 7-section proposals' },
         { name: 'human_rights_fact_finding', description: 'UN documentation protocols & chain of custody' },
-        { name: 'womens_health_gbv', description: 'Reproductive health & survivor-centered clinical guidelines' },
+        { name: 'womens_health_gbv', description: 'Reproductive health & clinical guidelines' },
         { name: 'disability_inclusion_audit', description: 'IASC disability inclusion audits & checklists' }
       ],
       s3Vault: {
@@ -175,11 +259,24 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
     return true;
   }
 
-  // 3. S3 Archival endpoint
+  // 3. AWS Bedrock Connection Test route (Safe, never leaks credentials)
+  if (url === '/api/aws/test-connection' && (req.method === 'POST' || req.method === 'GET')) {
+    res.setHeader('Content-Type', 'application/json');
+    testBedrockConnection()
+      .then((testResult) => {
+        res.statusCode = testResult.ok ? 200 : 200;
+        res.end(JSON.stringify(testResult));
+      })
+      .catch((err) => {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ ok: false, message: err?.message || 'Connection test failed', code: 'INTERNAL_ERROR' }));
+      });
+    return true;
+  }
+
+  // 4. S3 Archival endpoint
   if (url === '/api/aws/s3-archive' && req.method === 'POST') {
-    let bodyStr = '';
-    req.on('data', (chunk: any) => { bodyStr += chunk; });
-    req.on('end', () => {
+    parseRequestBody(req, (body) => {
       res.setHeader('Content-Type', 'application/json');
       res.end(JSON.stringify({
         success: true,
@@ -189,41 +286,85 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
         storageClass: 'INTELLIGENT_TIERING',
         serverSideEncryption: 'aws:kms',
         sha256: 'sha256-verified-tamper-evident',
-        sizeBytes: bodyStr.length,
+        sizeBytes: JSON.stringify(body).length,
         archivedAt: new Date().toISOString()
       }));
     });
     return true;
   }
 
-  // 4. Agent Generation route
-  // PRIVACY MANDATE: Do not store or log prompt content on server
+  // 5. Agent Generation route (with server-side cost protection, rate limits, and caps)
   if (url === '/api/agent/generate' && req.method === 'POST') {
-    let bodyStr = '';
-    req.on('data', (chunk: any) => { bodyStr += chunk; });
-    req.on('end', () => {
+    parseRequestBody(req, async (body) => {
       try {
-        const body = JSON.parse(bodyStr || '{}');
-        const agentId = body.agentId || 'humanitarian';
-        const userPrompt = body.userPrompt || '';
-        const modelId = body.modelId || process.env.BEDROCK_MODEL_ID || 'anthropic.claude-3-5-sonnet-20241022-v2:0';
+        const agentId = String(body.agentId || 'humanitarian');
+        const userPrompt = String(body.userPrompt || '');
+        const modelId = body.modelId || process.env.BEDROCK_MODEL_ID || '';
+        const { maxInputLength } = getRateLimits();
 
-        const startTime = Date.now();
-        const generated = generateDomainOutput(agentId, userPrompt);
-        const durationMs = Date.now() - startTime;
+        // Server-Side Limit 1: IP Rate Limit
+        const ipCheck = checkIpRateLimits(String(clientIp));
+        if (!ipCheck.allowed) {
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 429;
+          res.setHeader('Retry-After', '60');
+          return res.end(JSON.stringify({
+            success: false,
+            error: ipCheck.reason,
+            errorCode: 'RATE_LIMIT_EXCEEDED'
+          }));
+        }
+
+        // Server-Side Limit 2: Global Daily Request Cap
+        const globalCapCheck = checkGlobalDailyCap();
+        if (!globalCapCheck.allowed) {
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 429;
+          return res.end(JSON.stringify({
+            success: false,
+            error: 'demo capacity reached, try again tomorrow',
+            errorCode: 'DAILY_CAP_REACHED'
+          }));
+        }
+
+        // Server-Side Limit 3: Input Length Cap
+        if (userPrompt.length > maxInputLength) {
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 400;
+          return res.end(JSON.stringify({
+            success: false,
+            error: `Input exceeds maximum allowed length of ${maxInputLength} characters.`,
+            errorCode: 'PROMPT_TOO_LONG'
+          }));
+        }
+
+        const result = await invokeBedrock({
+          agentId,
+          userPrompt,
+          modelId
+        });
+
+        if (result.success) {
+          incrementGlobalDailyCount();
+        }
 
         res.setHeader('Content-Type', 'application/json');
+        res.statusCode = result.success ? 200 : 200;
+
         res.end(JSON.stringify({
-          success: true,
+          success: result.success,
           agentId,
-          output: generated.output,
-          voiceSummary: generated.voiceSummary,
-          durationMs,
-          usedRealBedrock: Boolean(process.env.AWS_ACCESS_KEY_ID),
+          output: result.output,
+          voiceSummary: result.voiceSummary,
+          durationMs: result.durationMs,
+          usedRealBedrock: result.usedRealBedrock,
+          isSimulated: result.isSimulated,
           guardrailsApplied: Boolean(process.env.BEDROCK_GUARDRAIL_ID),
-          model: modelId,
-          region: process.env.AWS_REGION || 'us-east-1',
-          disclaimer: 'AI-generated decision support. Verify against local protocols and qualified professionals before field action.'
+          model: result.model,
+          region: result.region,
+          disclaimer: result.disclaimer,
+          error: result.error,
+          errorCode: result.errorCode
         }));
       } catch (err: any) {
         res.setHeader('Content-Type', 'application/json');
@@ -234,13 +375,10 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
     return true;
   }
 
-  // 5. Tool execution route
+  // 6. Tool execution route
   if (url === '/api/execute-tool' && req.method === 'POST') {
-    let bodyStr = '';
-    req.on('data', (chunk: any) => { bodyStr += chunk; });
-    req.on('end', () => {
+    parseRequestBody(req, async (body) => {
       try {
-        const body = JSON.parse(bodyStr || '{}');
         const toolName = body.toolName || 'humanitarian_emergency_response';
         const input = body.input || '';
         const agentId = toolName.includes('grant')
@@ -254,14 +392,47 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
           : toolName.includes('disability')
           ? 'disability_inclusion'
           : 'humanitarian';
-        const generated = generateDomainOutput(agentId, input);
+
+        // Check Cost Protection Limits
+        const ipCheck = checkIpRateLimits(String(clientIp));
+        if (!ipCheck.allowed) {
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 429;
+          return res.end(JSON.stringify({ status: 'error', error: ipCheck.reason }));
+        }
+
+        const globalCapCheck = checkGlobalDailyCap();
+        if (!globalCapCheck.allowed) {
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 429;
+          return res.end(JSON.stringify({ status: 'error', error: 'demo capacity reached, try again tomorrow' }));
+        }
+
+        const bedrockResult = await invokeBedrock({
+          agentId,
+          userPrompt: typeof input === 'string' ? input : JSON.stringify(input)
+        });
+
+        if (bedrockResult.success) {
+          incrementGlobalDailyCount();
+        }
+
+        let output = bedrockResult.output;
+        let voiceSummary = bedrockResult.voiceSummary;
+
+        if (!bedrockResult.success) {
+          const fallback = generateDomainOutput(agentId, typeof input === 'string' ? input : JSON.stringify(input));
+          output = `> Note: Bedrock cloud call inactive (${bedrockResult.error || 'credentials not provided'}). Serving domain guideline baseline.\n\n${fallback.output}`;
+          voiceSummary = fallback.voiceSummary;
+        }
 
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({
           status: 'success',
           toolName,
-          output: generated.output,
-          voiceSummary: generated.voiceSummary,
+          output,
+          voiceSummary,
+          usedRealBedrock: bedrockResult.usedRealBedrock
         }));
       } catch (err: any) {
         res.setHeader('Content-Type', 'application/json');
@@ -272,7 +443,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
     return true;
   }
 
-  // 6. MCP Protocol (Spec 2025-11-25) SSE Stream
+  // 7. MCP Protocol (Spec 2025-11-25) SSE Stream
   if ((url === '/mcp' || url === '/api/mcp') && req.method === 'GET') {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -283,13 +454,10 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
     return true;
   }
 
-  // 7. MCP Protocol JSON-RPC 2.0 Handler
+  // 8. MCP Protocol JSON-RPC 2.0 Handler (Spec 2025-11-25)
   if ((url === '/mcp' || url === '/api/mcp') && req.method === 'POST') {
-    let bodyStr = '';
-    req.on('data', (chunk: any) => { bodyStr += chunk; });
-    req.on('end', () => {
+    parseRequestBody(req, async (body) => {
       try {
-        const body = JSON.parse(bodyStr || '{}');
         const { method, params, id } = body;
 
         res.setHeader('Content-Type', 'application/json');
@@ -302,7 +470,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
             result: {
               protocolVersion: '2025-11-25',
               capabilities: { tools: { listChanged: false } },
-              serverInfo: { name: 'nexus-impact-ai-mcp', version: '1.2.0' },
+              serverInfo: { name: 'nexus-impact-ai-mcp', version: '1.4.0' },
             },
             id: id ?? null,
           }));
@@ -354,6 +522,25 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
         }
 
         if (method === 'tools/call') {
+          // Check limits for MCP tool calls
+          const ipCheck = checkIpRateLimits(String(clientIp));
+          if (!ipCheck.allowed) {
+            return res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32000, message: ipCheck.reason || 'Rate limit exceeded' },
+              id: id ?? null
+            }));
+          }
+
+          const globalCapCheck = checkGlobalDailyCap();
+          if (!globalCapCheck.allowed) {
+            return res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32000, message: 'demo capacity reached, try again tomorrow' },
+              id: id ?? null
+            }));
+          }
+
           const toolName = params?.name || 'humanitarian_emergency_response';
           const args = params?.arguments || {};
           const agentId = toolName.includes('grant')
@@ -367,15 +554,45 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
             : toolName.includes('disability')
             ? 'disability_inclusion'
             : 'humanitarian';
-          const generated = generateDomainOutput(agentId, JSON.stringify(args));
+
+          const promptStr = typeof args === 'string' ? args : JSON.stringify(args);
+          const { maxInputLength } = getRateLimits();
+
+          if (promptStr.length > maxInputLength) {
+            return res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: { code: -32602, message: `Input exceeds maximum allowed length of ${maxInputLength} characters.` },
+              id: id ?? null
+            }));
+          }
+
+          const bedrockResult = await invokeBedrock({
+            agentId,
+            userPrompt: promptStr
+          });
+
+          if (bedrockResult.success) {
+            incrementGlobalDailyCount();
+          }
+
+          let output = bedrockResult.output;
+          let voiceSummary = bedrockResult.voiceSummary;
+
+          if (!bedrockResult.success) {
+            const fallback = generateDomainOutput(agentId, promptStr);
+            output = fallback.output;
+            voiceSummary = fallback.voiceSummary;
+          }
 
           return res.end(JSON.stringify({
             jsonrpc: '2.0',
             result: {
-              content: [{ type: 'text', text: generated.output }],
+              content: [{ type: 'text', text: output }],
               _meta: {
-                voiceSummary: generated.voiceSummary,
+                voiceSummary,
                 tool: toolName,
+                usedRealBedrock: bedrockResult.usedRealBedrock,
+                isSimulated: bedrockResult.isSimulated,
                 timestamp: new Date().toISOString()
               }
             },

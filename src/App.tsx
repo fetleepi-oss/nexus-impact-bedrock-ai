@@ -53,12 +53,12 @@ export default function App() {
   const [attachedKbItem, setAttachedKbItem] = useState<KnowledgeItem | null>(null);
 
   // AWS Bedrock Model Selection
-  const [selectedModel, setSelectedModel] = useState<string>(
-    'anthropic.claude-3-5-sonnet-20241022-v2:0'
-  );
+  const [selectedModel, setSelectedModel] = useState<string>('');
+  const [configuredModelId, setConfiguredModelId] = useState<string>('');
+  const [configuredRegion, setConfiguredRegion] = useState<string>('us-east-1');
 
   // Tier & Usage state
-  const [isPro, setIsPro] = useState<boolean>(true); // Default true under Hackathon Demo Mode
+  const [isPro, setIsPro] = useState<boolean>(true); // Default true under UNLOCK_ALL_AGENTS
   const [remainingGenerations, setRemainingGenerations] = useState<number>(FREE_DAILY_LIMIT);
 
   // Knowledge Base state
@@ -87,6 +87,20 @@ export default function App() {
     setIsPro(isProEntitled());
     setRemainingGenerations(getRemainingFreeGenerations());
     setKnowledgeItems(getKnowledgeItems());
+
+    // Fetch server health to get live configured Bedrock model ID and region
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.bedrockModelId) {
+          setConfiguredModelId(data.bedrockModelId);
+          setSelectedModel(data.bedrockModelId);
+        }
+        if (data.region) {
+          setConfiguredRegion(data.region);
+        }
+      })
+      .catch(() => {});
 
     // Auto-clear history if setting is 1h or 1d
     runAutoClearHistory();

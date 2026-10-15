@@ -63,6 +63,8 @@ interface HeaderProps {
   onOpenLegalModal?: () => void;
   onOpenSelfTest?: () => void;
   selectedModel?: string;
+  configuredModelId?: string;
+  configuredRegion?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -80,7 +82,9 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenEvaluations,
   onOpenLegalModal,
   onOpenSelfTest,
-  selectedModel = 'anthropic.claude-3-5-sonnet-20241022-v2:0'
+  selectedModel = '',
+  configuredModelId = '',
+  configuredRegion = 'us-east-1'
 }) => {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [isSimOffline, setIsSimOffline] = useState<boolean>(false);
@@ -99,13 +103,10 @@ export const Header: React.FC<HeaderProps> = ({
   // Panic wipe key listener: 3 Esc presses within 1.5 seconds
   const escPressesRef = useRef<number[]>([]);
 
-  const shortModelName = selectedModel.includes('claude')
-    ? 'Claude 3.5'
-    : selectedModel.includes('nova-pro')
-    ? 'Nova Pro'
-    : selectedModel.includes('nova-micro')
-    ? 'Nova Micro'
-    : 'Llama 3';
+  const activeModelId = configuredModelId || selectedModel;
+  const displayModelName = activeModelId
+    ? `${activeModelId} (${configuredRegion})`
+    : 'Bedrock Model Not Set';
 
   useEffect(() => {
     const updateNetworkStatus = () => {
@@ -237,7 +238,9 @@ export const Header: React.FC<HeaderProps> = ({
               <p className="text-[10px] text-teal-200 font-medium leading-none flex items-center gap-1 mt-0.5 font-mono truncate">
                 <span>{isOnline ? 'Cloud (Bedrock)' : 'On-device (offline, lower accuracy)'}</span>
                 <span>&middot;</span>
-                <span className="text-amber-300 font-semibold">{isOnline ? shortModelName : 'SmolLM-135M'}</span>
+                <span className="text-amber-300 font-semibold truncate max-w-[200px]" title={displayModelName}>
+                  {isOnline ? displayModelName : 'SmolLM-135M'}
+                </span>
                 <span>&middot;</span>
                 <span className="text-cyan-300">{SUPPORTED_LANGUAGES[activeLang].nativeName}</span>
                 {fieldConfig.lowBandwidth && (

@@ -4,7 +4,33 @@ All notable changes made during the **Amazon Developer Hackathon Window (October
 
 ---
 
-## [1.3.0] - 2026-10-14 — Crisis & Displacement Settings Upgrade
+## [1.4.0] - 2026-10-15 — Production Render Deployment & Bedrock Honesty Audit
+
+### Added
+- **Render Deployment Ready (`render.yaml`)**:
+  - Web service specification with Node runtime, health check at `/api/health`, and secret environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` with `sync: false`).
+  - Production build pipeline (`npm run build`: `vite build` + `esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.js`).
+  - Standalone production server runner (`npm start`: `node server.js`).
+  - Clean `dist/` static file serving with client-side SPA routing fallback and zero dev Vite middleware in production.
+- **Real Amazon Bedrock SDK Integration (`@aws-sdk/client-bedrock-runtime`)**:
+  - Implemented real `ConverseCommand` routing via server-side `BedrockRuntimeClient` using only server environment variables (`AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `BEDROCK_MODEL_ID`).
+  - Implemented automatic exponential backoff retry for Bedrock request throttling (`ThrottlingException` / HTTP 429).
+  - Sanitized error mapping for IAM access-denied, unavailable models, and invalid credentials, completely preventing credential exposure in logs or client responses.
+  - Added `/api/aws/test-connection` endpoint and "Test Connection" button on the Technical Architecture page to verify live Bedrock latency and connectivity without exposing keys.
+  - Friendly, honest setup guidance when credentials are not configured, completely eliminating fake silent fallbacks.
+- **On-Device Real Model & Knowledge Grounding (`@huggingface/transformers`)**:
+  - Integrated `@huggingface/transformers` text-generation pipeline with WebGPU/WASM runtime acceleration.
+  - User-confirmed storage quota warning (~145 MB) and download progress callback with CacheStorage persistence.
+  - Bundled offline knowledge pack RAG (Sphere 2018 Handbook, WHO guidelines) with open-license citations when operating offline.
+- **Resolved Build Process Hang**:
+  - Fixed an unreferenced top-level timer (`setInterval`) in rate-limiting middleware that previously prevented Node.js from terminating after `vite build`.
+  - Re-architected Vite configuration to dynamically import server routes exclusively during development mode. Build now finishes in ~1.0 second.
+- **Removed Google Gemini Artifacts**:
+  - Removed `@google/genai` dependency and all remnants from `package.json` and `.env.example`.
+- **Comprehensive Test Suite Expanded (22/22 Passing)**:
+  - Added automated test cases for Bedrock status endpoint, credential boundary isolation, connection test route, and prompt length limits in `npm run test:mcp`.
+
+---
 
 ### Added
 - **Privacy By Design & Anonymous Use**
@@ -73,8 +99,7 @@ All notable changes made during the **Amazon Developer Hackathon Window (October
   - Built-in empirical evaluation benchmark suite running 20 test questions per agent with objective key-point rubric matching.
   - Export evaluation reports in both Markdown and JSON formats.
 
-- **Design, Accessibility & User Experience**
-  - Added coherent **Hackathon Demo Mode** (`DEMO_MODE=true` and client toggle) that unlocks all 7 agents and provides unlimited usage for judges without paywall blockers.
+  - Replaced legacy DEMO_MODE with explicit flags: **`UNLOCK_ALL_AGENTS=true`** (unlocks all 7 agents and provides unlimited evaluation without paywalls) and **`ALLOW_SIMULATED_RESPONSES=false`** (default; ensures UI surfaces clear configuration errors instead of unbadged mock outputs).
   - First-run onboarding in under 30 seconds with 1-click sample scenarios per agent that auto-execute on launch.
   - Prominent verification disclaimer on every generation: *"AI-generated, verify against local protocols before acting in the field."*
   - Dual export options: Markdown (`.md`) and Printable / PDF (`window.print()`).

@@ -241,7 +241,7 @@ async function runTests() {
     assert.ok(toolNames.includes('grant_proposal_architect'));
   });
 
-  await runCase('MCP POST tools/call executes tool and returns structured content & meta', () => {
+  await runCase('MCP POST tools/call executes tool and returns structured content & meta', async () => {
     const { req, res } = createMockHttp('POST', '/mcp', {
       jsonrpc: '2.0',
       id: 4,
@@ -256,6 +256,7 @@ async function runTests() {
     });
     const handled = handleServerApi(req, res);
     assert.strictEqual(handled, true);
+    await new Promise((r) => setTimeout(r, 100));
 
     const body = res.getBody();
     assert.strictEqual(body.jsonrpc, '2.0');
@@ -280,7 +281,10 @@ async function runTests() {
     const body = res.getBody();
     assert.strictEqual(body.status, 'ok');
     assert.strictEqual(body.service, 'Nexus Impact AI');
-    assert.strictEqual(body.loggingPolicy, 'zero_prompt_logging_privacy_enforced');
+    assert.ok(
+      body.loggingPolicy.includes('does not log prompt text') ||
+      body.loggingPolicy === 'zero_prompt_logging_privacy_enforced'
+    );
     assert.strictEqual(res.getHeaders()['x-content-type-options'], 'nosniff');
     assert.strictEqual(res.getHeaders()['referrer-policy'], 'no-referrer');
   });
@@ -318,6 +322,76 @@ async function runTests() {
     const prompt = 'Calculate Sphere standard water and latrine allocations for 18,000 displaced persons.';
     const check = validateHumanInTheLoopSafety(prompt, 'humanitarian', 'Humanitarian', 'Claude 3.5');
     assert.strictEqual(check.isBlocked, false);
+  });
+
+  // -------------------------------------------------------------------------
+  // 6. AMAZON BEDROCK ROUTING & CREDENTIAL ISOLATION
+  // -------------------------------------------------------------------------
+  console.log('\n--- 6. Amazon Bedrock & Cloud Security Boundaries ---');
+
+  await runCase('GET /api/aws/status returns model list and never leaks secret credentials', () => {
+    const { req, res } = createMockHttp('GET', '/api/aws/status');
+    const handled = handleServerApi(req, res);
+    assert.strictEqual(handled, true);
+
+    const body = res.getBody();
+    assert.strictEqual(body.status, 'active');
+    assert.ok(Array.isArray(body.supportedModels));
+    assert.ok(body.supportedModels.length >= 4);
+
+    // Verify absolutely no AWS secrets exist in response
+    const raw = res.getRawBody();
+    assert.strictEqual(raw.includes('AWS_SECRET_ACCESS_KEY'), false);
+    assert.strictEqual(raw.includes('secretAccessKey'), false);
+  });
+
+  await runCase('POST /api/aws/test-connection handles unconfigured credentials gracefully without crash', async () => {
+    const { req, res } = createMockHttp('POST', '/api/aws/test-connection');
+    handleServerApi(req, res);
+    // Give async handler brief cycle
+    await new Promise((r) => setTimeout(r, 100));
+
+    const body = res.getBody();
+    assert.ok(typeof body.ok === 'boolean');
+    assert.ok(typeof body.message === 'string');
+    // Ensure message contains zero AWS keys
+    assert.strictEqual(JSON.stringify(body).includes('AKIA'), false);
+  });
+
+  await runCase('POST /api/agent/generate rejects oversized inputs (> 50,000 chars) with 400', async () => {
+    const hugePrompt = 'A'.repeat(50005);
+    const { req, res } = createMockHttp('POST', '/api/agent/generate', {
+      agentId: 'humanitarian',
+      userPrompt: hugePrompt
+    });
+    handleServerApi(req, res);
+    await new Promise((r) => setTimeout(r, 100));
+
+    const body = res.getBody();
+    assert.strictEqual(body.success, false);
+    assert.strictEqual(body.errorCode, 'PROMPT_TOO_LONG');
+  });
+
+  await runCase('POST /api/agent/generate provides actionable setup guidance when Bedrock credentials are unset', async () => {
+    const { req, res } = createMockHttp('POST', '/api/agent/generate', {
+      agentId: 'humanitarian',
+      userPrompt: 'Assess shelter needs for 2,000 displaced individuals'
+    });
+    handleServerApi(req, res);
+    await new Promise((r) => setTimeout(r, 150));
+
+    const body = res.getBody();
+    // Either live call succeeded, simulation was enabled, or actionable setup message was returned
+    if (!body.success) {
+      assert.ok(body.errorCode === 'MISSING_AWS_CREDENTIALS' || body.errorCode === 'MISSING_BEDROCK_MODEL_ID');
+      assert.ok(body.error.includes('Amazon Bedrock') || body.error.includes('BEDROCK_MODEL_ID'));
+    } else {
+      assert.ok(body.output.length > 0);
+    }
+    // Verify no secret credential value is leaked
+    assert.strictEqual(body.AWS_SECRET_ACCESS_KEY, undefined);
+    assert.strictEqual(body.secretAccessKey, undefined);
+    assert.strictEqual(/AKIA[0-9A-Z]{16}/.test(JSON.stringify(body)), false);
   });
 
   // -------------------------------------------------------------------------
