@@ -94,7 +94,7 @@ export const OnDeviceModelModal: React.FC<OnDeviceModelModalProps> = ({ isOpen, 
                 </span>
               </h2>
               <p className="text-xs text-slate-300">
-                100% offline inference directly in your browser
+                On-device inference directly in browser (compact model + offline pack; lower accuracy than cloud)
               </p>
             </div>
           </div>

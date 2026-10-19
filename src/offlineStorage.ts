@@ -18,6 +18,7 @@ export interface CachedAgentOutput {
   model: string;
   modelCategory: ModelExecutionTier;
   isOfflineCached: boolean;
+  isSimulated?: boolean;
   queuedRequestId?: string;
   tags?: string[];
   citationsCount?: number;
@@ -401,10 +402,17 @@ export async function drainOfflineQueue(
 
 export function exportCachedItemToMarkdown(item: CachedAgentOutput): void {
   const dateStr = new Date(item.timestamp).toISOString();
+  const isSimulated = Boolean(item.isSimulated || item.model?.includes('SIMULATED') || item.output?.includes('SIMULATED'));
   let md = `# ${item.title}\n\n`;
+  if (isSimulated) {
+    md += `> **[SIMULATED, not from Amazon Bedrock]**\n\n`;
+  }
   md += `**Agent**: ${item.agentName} (${item.agentId})\n`;
   md += `**Execution Tier**: ${item.modelCategory === 'cloud' ? 'Cloud (Bedrock)' : 'On-device (offline, lower accuracy)'}\n`;
   md += `**Model Specification**: ${item.model}\n`;
+  if (isSimulated) {
+    md += `**Source**: SIMULATED, not from Amazon Bedrock\n`;
+  }
   md += `**Timestamp**: ${dateStr}\n\n`;
   md += `## Original Prompt\n${item.prompt}\n\n`;
   md += `---\n\n`;
@@ -428,10 +436,17 @@ export function exportAllCachedItemsToMarkdown(items: CachedAgentOutput[]): void
   fullMd += `*Total Documents: ${items.length} | Exported: ${new Date().toISOString()}*\n\n`;
   fullMd += `---\n\n`;
   items.forEach((item, idx) => {
+    const isSimulated = Boolean(item.isSimulated || item.model?.includes('SIMULATED') || item.output?.includes('SIMULATED'));
     fullMd += `## [Document ${idx + 1}] ${item.title}\n`;
+    if (isSimulated) {
+      fullMd += `> **[SIMULATED, not from Amazon Bedrock]**\n\n`;
+    }
     fullMd += `- **Agent**: ${item.agentName}\n`;
     fullMd += `- **Tier**: ${item.modelCategory === 'cloud' ? 'Cloud (Bedrock)' : 'On-device (offline, lower accuracy)'}\n`;
     fullMd += `- **Model**: ${item.model}\n`;
+    if (isSimulated) {
+      fullMd += `- **Source**: SIMULATED, not from Amazon Bedrock\n`;
+    }
     fullMd += `- **Date**: ${new Date(item.timestamp).toLocaleString()}\n\n`;
     fullMd += `### Synthesis Content\n\n${item.output}\n\n`;
     fullMd += `---\n\n`;

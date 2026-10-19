@@ -120,7 +120,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
               {isDemo ? (
                 <>
                   <CheckCircle2 className="w-3 h-3 text-teal-300" aria-hidden="true" />
-                  <span>DEMO UNLOCKED</span>
+                  <span>All agents unlocked</span>
                 </>
               ) : effectivelyLocked ? (
                 <>

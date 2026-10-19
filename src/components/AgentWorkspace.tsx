@@ -304,6 +304,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     modelCategory?: 'cloud' | 'on_device';
     isOfflineCached?: boolean;
     isOfflineOnDevice?: boolean;
+    isSimulated?: boolean;
   } | null>(null);
   const [lastExecutedPrompt, setLastExecutedPrompt] = useState<string>('');
   const [lastQueuedRequestId, setLastQueuedRequestId] = useState<string | null>(null);
@@ -362,28 +363,159 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     }
   }, [autoExecuteTrigger]);
 
-  // Handle initial prompt
+  // Parse structured or freeform prompts into individual field states without mixing values
+  const applyPromptToAgentFields = (text: string) => {
+    if (!text || !text.trim()) return;
+    const cleanText = text.trim();
+
+    if (isHumanitarianAgent) {
+      // Lookahead protection: ensure field matches do not bleed across field labels
+      const crisisMatch = cleanText.match(/(?:Crisis Type|Disaster Type):\s*([^\r\n]+?)(?=(?:\r?\n|\s*(?:Location|Operational Location|Population Size|Population|Demographic|Available Resources|Operational Constraints):|$))/i);
+      const locMatch = cleanText.match(/(?:Location|Operational Location):\s*([^\r\n]+?)(?=(?:\r?\n|\s*(?:Population Size|Population|Demographic|Available Resources|Operational Constraints):|$))/i);
+      const popMatch = cleanText.match(/(?:Population Size|Population|Affected Population):\s*([^\r\n]+?)(?=(?:\r?\n|\s*(?:Demographic|Available Resources|Operational Constraints):|$))/i);
+      const vulMatch = cleanText.match(/(?:Demographic Vulnerabilities|Vulnerabilities):\s*([^\r\n]+?)(?=(?:\r?\n|\s*(?:Available Resources|Operational Constraints):|$))/i);
+      const resMatch = cleanText.match(/(?:Available Resources|Resources|Pre-positioned Assets):\s*([^\r\n]+?)(?=(?:\r?\n|\s*(?:Operational Constraints):|$))/i);
+      const constrMatch = cleanText.match(/(?:Operational Constraints|Constraints):\s*([^\r\n]+?)$/i);
+
+      if (crisisMatch || locMatch || popMatch) {
+        if (crisisMatch && crisisMatch[1].trim()) setCrisisType(crisisMatch[1].trim());
+        if (locMatch && locMatch[1].trim()) setCrisisLocation(locMatch[1].trim());
+        if (popMatch && popMatch[1].trim()) setAffectedPopulation(popMatch[1].trim());
+        if (vulMatch && vulMatch[1].trim()) setDemographicVulnerabilities(vulMatch[1].trim());
+        if (resMatch && resMatch[1].trim()) setAvailableResources(resMatch[1].trim());
+        if (constrMatch && constrMatch[1].trim()) setOperationalConstraints(constrMatch[1].trim());
+      } else if (agent.sampleScenario && cleanText === agent.sampleScenario.fullPrompt.trim()) {
+        const p = agent.sampleScenario.targetParams;
+        if (p.crisisType) setCrisisType(p.crisisType);
+        if (p.location) setCrisisLocation(p.location);
+        if (p.population) setAffectedPopulation(p.population);
+        if (p.resources) setAvailableResources(p.resources);
+      } else if (!cleanText.includes(':') && !cleanText.includes('\n') && cleanText.length < 80) {
+        setCrisisLocation(cleanText);
+      }
+    } else if (isResearchAgent) {
+      const topicMatch = cleanText.match(/(?:Topic|Research Topic|Research Question):\s*([^\n]+)/i);
+      const regionMatch = cleanText.match(/(?:Region|Operational Region):\s*([^\n]+)/i);
+      const absMatch = cleanText.match(/(?:Pasted Abstracts|Abstracts|Excerpts)(?:\s*\/\s*Excerpts)?:\s*([\s\S]+)/i);
+
+      if (topicMatch || regionMatch) {
+        if (topicMatch) setResearchTopic(topicMatch[1].trim());
+        if (regionMatch) setResearchRegion(regionMatch[1].trim());
+        if (absMatch) {
+          setResearchAbstracts(absMatch[1].trim());
+          setShowAbstractsInput(true);
+        }
+      } else if (agent.sampleScenario && cleanText === agent.sampleScenario.fullPrompt.trim()) {
+        const p = agent.sampleScenario.targetParams;
+        if (p.topic) setResearchTopic(p.topic);
+        if (p.region) setResearchRegion(p.region);
+      } else {
+        setResearchTopic(cleanText);
+      }
+    } else if (isPublicHealthAgent) {
+      const modeMatch = cleanText.match(/Mode:\s*([^\n]+)/i);
+      const syndMatch = cleanText.match(/(?:Suspected Syndrome|Syndrome):\s*([^\n]+)/i);
+      const locMatch = cleanText.match(/(?:Location \/ Setting|Location|Setting|Operational Context):\s*([^\n]+)/i);
+      const countsMatch = cleanText.match(/Case Counts:\s*([\s\S]+)/i);
+      const disMatch = cleanText.match(/Disease:\s*([^\n]+)/i);
+      const facMatch = cleanText.match(/Facility Count:\s*([^\n]+)/i);
+      const capMatch = cleanText.match(/Storage Capacity:\s*([^\n]+)/i);
+      const routeMatch = cleanText.match(/Transport Route:\s*([^\n]+)/i);
+      const antMatch = cleanText.match(/Target Antigens:\s*([^\n]+)/i);
+
+      if (modeMatch || syndMatch || countsMatch || disMatch || facMatch) {
+        if (modeMatch) {
+          const m = modeMatch[1].toLowerCase();
+          if (m.includes('cold')) setPublicHealthMode('coldchain');
+          else if (m.includes('surveillance')) setPublicHealthMode('surveillance');
+          else setPublicHealthMode('outbreak');
+        }
+        if (syndMatch) setSuspectedSyndrome(syndMatch[1].trim());
+        if (locMatch) {
+          setOutbreakLocation(locMatch[1].trim());
+          setSurveillanceSetting(locMatch[1].trim());
+        }
+        if (countsMatch) setOutbreakCaseCounts(countsMatch[1].trim());
+        if (disMatch) setSurveillanceDisease(disMatch[1].trim());
+        if (facMatch) setColdChainFacilities(facMatch[1].trim());
+        if (capMatch) setColdChainCapacity(capMatch[1].trim());
+        if (routeMatch) setColdChainRoute(routeMatch[1].trim());
+        if (antMatch) setColdChainAntigens(antMatch[1].trim());
+      } else if (cleanText.toLowerCase().includes('cold')) {
+        setPublicHealthMode('coldchain');
+      } else if (cleanText.toLowerCase().includes('surveillance')) {
+        setPublicHealthMode('surveillance');
+      } else {
+        setPublicHealthMode('outbreak');
+      }
+    } else if (isGrantProposalAgent) {
+      const funderMatch = cleanText.match(/(?:Target Funder|Funder|Donor):\s*([^\n]+)/i);
+      const callMatch = cleanText.match(/(?:Call Text \/ Priorities|Call Text|Scope):\s*([^\n]+(?:\n(?!Organization Profile:|Budget Range:)[^\n]+)*)/i);
+      const orgMatch = cleanText.match(/(?:Organization Profile|Organization):\s*([^\n]+(?:\n(?!Budget Range:)[^\n]+)*)/i);
+      const budgetMatch = cleanText.match(/(?:Budget Range|Budget):\s*([^\n]+)/i);
+
+      if (funderMatch || callMatch || orgMatch || budgetMatch) {
+        if (funderMatch) setGrantFunder(funderMatch[1].trim());
+        if (callMatch) setGrantCallText(callMatch[1].trim());
+        if (orgMatch) setGrantOrgProfile(orgMatch[1].trim());
+        if (budgetMatch) setGrantBudgetRange(budgetMatch[1].trim());
+      } else if (agent.sampleScenario && cleanText === agent.sampleScenario.fullPrompt.trim()) {
+        const p = agent.sampleScenario.targetParams;
+        if (p.funder) setGrantFunder(p.funder);
+        if (p.scope) setGrantCallText(p.scope);
+        if (p.budget) setGrantBudgetRange(p.budget);
+      } else {
+        setGrantCallText(cleanText);
+      }
+    } else if (isHumanRightsAgent) {
+      const incMatch = cleanText.match(/(?:Incident \/ Violations|Incident|Violations):\s*([^\n]+(?:\n(?!Jurisdiction|Details:)[^\n]+)*)/i);
+      const jurisMatch = cleanText.match(/(?:Jurisdiction & Standards|Jurisdiction):\s*([^\n]+)/i);
+      const detMatch = cleanText.match(/Details:\s*([^\n]+(?:\n(?!Jurisdiction:)[^\n]+)*)/i);
+
+      if (incMatch || jurisMatch || detMatch) {
+        const violationText = [
+          incMatch ? incMatch[1].trim() : '',
+          detMatch ? detMatch[1].trim() : ''
+        ].filter(Boolean).join('\n');
+        if (violationText) setHrViolationDetails(violationText);
+        if (jurisMatch) setHrJurisdiction(jurisMatch[1].trim());
+      } else if (agent.sampleScenario && cleanText === agent.sampleScenario.fullPrompt.trim()) {
+        const p = agent.sampleScenario.targetParams;
+        if (p.violation) setHrViolationDetails(p.violation);
+        if (p.jurisdiction) setHrJurisdiction(p.jurisdiction);
+      } else {
+        setHrViolationDetails(cleanText);
+      }
+    } else if (isWomensHealthAgent) {
+      const setMatch = cleanText.match(/(?:Setting|Operational Setting|Clinic Setting):\s*([^\n]+)/i);
+      const prioMatch = cleanText.match(/(?:Priority|Clinical Priorities|Priorities):\s*([^\n]+)/i);
+      const reqMatch = cleanText.match(/Requirements:\s*([^\n]+)/i);
+
+      if (setMatch || prioMatch || reqMatch) {
+        if (setMatch) setWhSetting(setMatch[1].trim());
+        const prioText = [
+          prioMatch ? prioMatch[1].trim() : '',
+          reqMatch ? reqMatch[1].trim() : ''
+        ].filter(Boolean).join('. ');
+        if (prioText) setWhPriority(prioText);
+      } else if (agent.sampleScenario && cleanText === agent.sampleScenario.fullPrompt.trim()) {
+        const p = agent.sampleScenario.targetParams;
+        if (p.setting) setWhSetting(p.setting);
+        if (p.priority) setWhPriority(p.priority);
+      } else {
+        setWhSetting(cleanText);
+      }
+    } else {
+      setPrompt(cleanText);
+    }
+  };
+
+  // Handle initial prompt without cross-field contamination
   useEffect(() => {
     if (initialPrompt) {
-      if (isGrantProposalAgent) {
-        setGrantCallText(initialPrompt);
-      } else if (isResearchAgent) {
-        setResearchTopic(initialPrompt);
-      } else if (isHumanitarianAgent) {
-        setCrisisLocation(initialPrompt);
-      } else if (isPublicHealthAgent) {
-        if (initialPrompt.toLowerCase().includes('cold')) {
-          setPublicHealthMode('coldchain');
-        } else if (initialPrompt.toLowerCase().includes('surveillance')) {
-          setPublicHealthMode('surveillance');
-        } else {
-          setPublicHealthMode('outbreak');
-        }
-      } else {
-        setPrompt(initialPrompt);
-      }
+      applyPromptToAgentFields(initialPrompt);
     }
-  }, [initialPrompt, isGrantProposalAgent, isResearchAgent, isHumanitarianAgent, isPublicHealthAgent]);
+  }, [initialPrompt, agent.id]);
 
   // Parse output into structured cards
   const parseSections = (text: string): ParsedSection[] => {
@@ -721,28 +853,8 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     if (!agent.sampleScenario) return;
     const scenario = agent.sampleScenario;
 
-    if (isResearchAgent) {
-      setResearchTopic(scenario.targetParams.topic || scenario.fullPrompt);
-      if (scenario.targetParams.region) setResearchRegion(scenario.targetParams.region);
-    } else if (isHumanitarianAgent) {
-      setCrisisType(scenario.targetParams.crisisType || 'Flash Flood & Riverine Inundation');
-      setCrisisLocation(scenario.targetParams.location || 'Lower Shabelle, Somalia');
-      setAffectedPopulation(scenario.targetParams.population || '18,000 individuals');
-    } else if (isPublicHealthAgent) {
-      setPublicHealthMode('outbreak');
-    } else if (isGrantProposalAgent) {
-      setGrantFunder(scenario.targetParams.funder || 'USAID Bureau for Humanitarian Assistance (BHA)');
-      setGrantCallText(scenario.targetParams.scope || scenario.fullPrompt);
-      setGrantBudgetRange(scenario.targetParams.budget || '$1,450,000 USD (24 Months)');
-    } else if (isHumanRightsAgent) {
-      setHrViolationDetails(scenario.targetParams.violation || scenario.fullPrompt);
-      if (scenario.targetParams.jurisdiction) setHrJurisdiction(scenario.targetParams.jurisdiction);
-    } else if (isWomensHealthAgent) {
-      setWhSetting(scenario.targetParams.setting || scenario.fullPrompt);
-      if (scenario.targetParams.priority) setWhPriority(scenario.targetParams.priority);
-    } else {
-      setPrompt(scenario.fullPrompt);
-    }
+    // Apply sample values strictly to their own form inputs
+    applyPromptToAgentFields(scenario.fullPrompt);
 
     // Trigger generation with guaranteed < 30 second result
     executeWithPrompt(scenario.fullPrompt);
@@ -899,30 +1011,38 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             modelLabel = data.model || selectedModel;
             trackDataUsage(promptToSend.length + data.output.length);
           } else if (data && !data.success && data.error) {
-            outputText = `### Cloud Inference Notice: ${data.errorCode === 'MISSING_AWS_CREDENTIALS' ? 'Amazon Bedrock Not Configured' : 'Amazon Bedrock Error'}\n\n${data.error}\n\n---\n**What to do next:**\n* **Render Deployment:** Add \`AWS_ACCESS_KEY_ID\`, \`AWS_SECRET_ACCESS_KEY\`, and \`BEDROCK_MODEL_ID\` in your Render Dashboard environment variables.\n* **Offline Use:** Check **"Keep strictly on-device"** above or turn on Airplane Mode to use the bundled on-device knowledge pack.\n* **Local Simulation:** Set \`ALLOW_SIMULATED_RESPONSES=true\` in your server \`.env\` file if you wish to preview mock templates without cloud credentials.`;
-            usedRealBedrock = false;
-            modelLabel = `${data.model || selectedModel} (Not Configured)`;
+            setErrorMsg(`Amazon Bedrock Notice (${data.errorCode === 'MISSING_AWS_CREDENTIALS' ? 'Credentials Not Set' : 'Inference Error'}): ${data.error}`);
+            setOutput(null);
+            setIsGenerating(false);
+            return;
           } else {
-            outputText = `### Server Connection Notice\n\nUnable to reach Amazon Bedrock server endpoint. Please verify server status on the Technical page or switch to On-device (offline) mode for instant guidance.`;
-            usedRealBedrock = false;
-            modelLabel = selectedModel;
+            setErrorMsg('Unable to reach Amazon Bedrock server endpoint. Please verify server status on the Technical page or switch to On-device (offline) mode.');
+            setOutput(null);
+            setIsGenerating(false);
+            return;
           }
         } catch (fetchErr: any) {
-          outputText = `### Network Connection Notice\n\nCould not reach the server API: ${fetchErr?.message || 'Network disconnected'}.\n\n**Next step:** Switch to On-device (offline) mode to continue without an active internet connection.`;
-          usedRealBedrock = false;
-          modelLabel = 'Cloud (Bedrock - Offline)';
+          setErrorMsg(`Network Connection Notice: Could not reach the server API: ${fetchErr?.message || 'Network disconnected'}. Switch to On-device (offline) mode to continue without an active internet connection.`);
+          setOutput(null);
+          setIsGenerating(false);
+          return;
         }
       }
 
       const durationMs = Date.now() - startTime;
       setOutput(outputText);
+      const isSimulatedResponse = Boolean(
+        outputText.includes('[SIMULATED') ||
+        modelLabel.includes('SIMULATED')
+      );
       setGenerationMeta({
         durationMs,
         usedRealBedrock,
         model: modelLabel,
         modelCategory: isOfflineOnDevice ? 'on_device' : 'cloud',
         isOfflineOnDevice,
-        isOfflineCached: false
+        isOfflineCached: false,
+        isSimulated: isSimulatedResponse
       });
 
       // Extract Evidence Claims
@@ -957,7 +1077,8 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         timestamp: Date.now(),
         model: modelLabel,
         modelCategory: isOfflineOnDevice ? 'on_device' : 'cloud',
-        isOfflineCached: false
+        isOfflineCached: false,
+        isSimulated: isSimulatedResponse
       });
 
       if (!isPro && !isDemo && agent.id !== 'knowledge_base') {
@@ -1125,7 +1246,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         <div className="flex items-center gap-1.5">
           {isDemo ? (
             <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-teal-500/20 text-teal-200 border border-teal-500/40">
-              DEMO UNLOCKED
+              All agents unlocked
             </span>
           ) : (
             <span
@@ -1272,7 +1393,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
               <span>Proposal Inputs</span>
             </h3>
             <span className="text-[10px] font-mono text-teal-300 font-bold">
-              {isDemo ? 'DEMO UNLOCKED' : 'PRO AGENT'}
+              {isDemo ? 'All agents unlocked' : 'PRO AGENT'}
             </span>
           </div>
 
@@ -1463,6 +1584,15 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
                   className="w-full p-2.5 rounded-xl bg-[#0B132B] border border-[#2E3C62] focus:border-teal-400 focus:outline-none text-xs text-white"
                 />
               </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-white">Demographic Vulnerabilities:</label>
+                <input
+                  type="text"
+                  value={demographicVulnerabilities}
+                  onChange={(e) => setDemographicVulnerabilities(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-[#0B132B] border border-[#2E3C62] focus:border-teal-400 focus:outline-none text-xs text-white"
+                />
+              </div>
               <div className="flex justify-between pt-1">
                 <button
                   type="button"
@@ -1492,6 +1622,15 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
                   value={availableResources}
                   onChange={(e) => setAvailableResources(e.target.value)}
                   className="w-full p-2.5 rounded-xl bg-[#0B132B] border border-[#2E3C62] focus:border-teal-400 focus:outline-none text-xs text-white resize-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-white">Operational Constraints:</label>
+                <input
+                  type="text"
+                  value={operationalConstraints}
+                  onChange={(e) => setOperationalConstraints(e.target.value)}
+                  className="w-full p-2.5 rounded-xl bg-[#0B132B] border border-[#2E3C62] focus:border-teal-400 focus:outline-none text-xs text-white"
                 />
               </div>
               <div className="flex items-center justify-between pt-1">
@@ -1564,7 +1703,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
               <span>Human Rights Legal Documentation</span>
             </h3>
             <span className="text-[10px] font-mono text-teal-300 font-bold">
-              {isDemo ? 'DEMO UNLOCKED' : 'PRO AGENT'}
+              {isDemo ? 'All agents unlocked' : 'PRO AGENT'}
             </span>
           </div>
 
@@ -1615,7 +1754,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
               <span>Maternal Survival &amp; GBV Care Protocol</span>
             </h3>
             <span className="text-[10px] font-mono text-teal-300 font-bold">
-              {isDemo ? 'DEMO UNLOCKED' : 'PRO AGENT'}
+              {isDemo ? 'All agents unlocked' : 'PRO AGENT'}
             </span>
           </div>
 
@@ -1792,11 +1931,36 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-teal-400 shrink-0" />
               <div>
-                <h2 className="text-xs font-bold uppercase tracking-wider text-white">
-                  {agent.name} Output
-                </h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-white">
+                    {agent.name} Output
+                  </h2>
+                  {/* Explicit Source Badge: Amazon Bedrock (model ID), On-device, Offline knowledge pack, or SIMULATED */}
+                  {generationMeta?.isSimulated || output?.includes('[SIMULATED') ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[10px] font-mono font-black uppercase tracking-wider">
+                      <AlertTriangle className="w-3 h-3 text-amber-400" />
+                      <span>SIMULATED</span>
+                    </span>
+                  ) : generationMeta?.usedRealBedrock ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[10px] font-mono font-bold">
+                      <span>Amazon Bedrock ({generationMeta.model || selectedModel || 'configured model'})</span>
+                    </span>
+                  ) : generationMeta?.isOfflineCached ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-mono font-bold">
+                      <span>Offline knowledge pack</span>
+                    </span>
+                  ) : generationMeta?.isOfflineOnDevice ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/20 text-blue-300 border border-blue-500/40 text-[10px] font-mono font-bold">
+                      <span>On-device</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[10px] font-mono font-bold">
+                      <span>Amazon Bedrock ({generationMeta?.model || 'configured model'})</span>
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] text-teal-200 font-mono">
-                  {generationMeta?.model || 'Amazon Bedrock'} &middot; {generationMeta?.durationMs || 1200}ms
+                  {generationMeta?.durationMs || 1200}ms &middot; Local Vault Encrypted
                 </span>
               </div>
             </div>

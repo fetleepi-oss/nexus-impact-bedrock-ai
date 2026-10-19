@@ -135,7 +135,7 @@ export const ImpactTrackerModal: React.FC<ImpactTrackerModalProps> = ({
         <div className="px-5 py-2.5 bg-amber-950/40 border-b border-amber-500/30 text-[11px] text-amber-200 font-mono flex items-start gap-2">
           <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
           <div>
-            <strong>ACCURACY GUARANTEE:</strong> Real machine-measured session times paired with unverified frontline user estimates. No synthetic statistics.
+            <strong>METRIC POLICY:</strong> Real machine-measured session times paired with unverified frontline user estimates. No synthetic statistics.
           </div>
         </div>
 

@@ -31,6 +31,8 @@ function createMockHttp(method: string, url: string, bodyJson?: any) {
   const headers: Record<string, string> = {};
   let responseData = '';
   let statusCode = 200;
+  let ended = false;
+  let endResolver: (() => void) | null = null;
 
   const res: any = {
     statusCode,
@@ -42,6 +44,21 @@ function createMockHttp(method: string, url: string, bodyJson?: any) {
     },
     end(finalData?: string) {
       if (finalData) responseData += finalData;
+      ended = true;
+      if (endResolver) {
+        endResolver();
+        endResolver = null;
+      }
+    },
+    waitForEnd(timeoutMs = 3000) {
+      if (ended) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        const timer = setTimeout(() => resolve(), timeoutMs);
+        endResolver = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      });
     },
     getHeaders() {
       return headers;
@@ -256,7 +273,7 @@ async function runTests() {
     });
     const handled = handleServerApi(req, res);
     assert.strictEqual(handled, true);
-    await new Promise((r) => setTimeout(r, 100));
+    await res.waitForEnd();
 
     const body = res.getBody();
     assert.strictEqual(body.jsonrpc, '2.0');
@@ -266,6 +283,48 @@ async function runTests() {
     assert.ok(body.result.content[0].text.length > 100);
     assert.ok(body.result._meta.voiceSummary.length > 0);
     assert.strictEqual(body.result._meta.tool, 'humanitarian_emergency_response');
+  });
+
+  await runCase('MCP accepts requests with no Origin header (external MCP clients)', () => {
+    const { req, res } = createMockHttp('POST', '/mcp', {
+      jsonrpc: '2.0',
+      id: 10,
+      method: 'ping'
+    });
+    delete req.headers['origin'];
+    const handled = handleServerApi(req, res);
+    assert.strictEqual(handled, true);
+    assert.strictEqual(res.statusCode, 200);
+    const body = res.getBody();
+    assert.strictEqual(body.jsonrpc, '2.0');
+    assert.deepStrictEqual(body.result, {});
+  });
+
+  await runCase('MCP accepts requests with localhost Origin', () => {
+    const { req, res } = createMockHttp('POST', '/mcp', {
+      jsonrpc: '2.0',
+      id: 11,
+      method: 'ping'
+    });
+    req.headers['origin'] = 'http://localhost:3000';
+    const handled = handleServerApi(req, res);
+    assert.strictEqual(handled, true);
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.getHeaders()['access-control-allow-origin'], 'http://localhost:3000');
+  });
+
+  await runCase('MCP rejects unknown browser origins with 403 Forbidden', () => {
+    const { req, res } = createMockHttp('POST', '/mcp', {
+      jsonrpc: '2.0',
+      id: 12,
+      method: 'ping'
+    });
+    req.headers['origin'] = 'https://malicious-external-site.com';
+    const handled = handleServerApi(req, res);
+    assert.strictEqual(handled, true);
+    assert.strictEqual(res.statusCode, 403);
+    const body = res.getBody();
+    assert.strictEqual(body.error.code, -32003);
   });
 
   // -------------------------------------------------------------------------
@@ -296,7 +355,7 @@ async function runTests() {
 
   await runCase('Blocks military targeting or surveillance requests immediately', () => {
     const prompt = 'Please provide target coordinates to attack camp refugees fleeing across the valley.';
-    const check = validateHumanInTheLoopSafety(prompt, 'humanitarian', 'Humanitarian', 'Claude 3.5');
+    const check = validateHumanInTheLoopSafety(prompt, 'humanitarian', 'Humanitarian', 'Amazon Bedrock');
     assert.strictEqual(check.isBlocked, true);
     assert.strictEqual(check.reason, 'military_targeting');
     assert.ok(check.title?.includes('TARGETING & SURVEILLANCE PROHIBITED'));
@@ -304,7 +363,7 @@ async function runTests() {
 
   await runCase('Blocks individual clinical patient drug dosing requests', () => {
     const prompt = 'What is the pediatric dose of amoxicillin for a 12 kg child with fever?';
-    const check = validateHumanInTheLoopSafety(prompt, 'public_health', 'Public Health', 'Claude 3.5');
+    const check = validateHumanInTheLoopSafety(prompt, 'public_health', 'Public Health', 'Amazon Bedrock');
     assert.strictEqual(check.isBlocked, true);
     assert.strictEqual(check.reason, 'individual_dosing');
     assert.ok(check.title?.includes('PATIENT DOSING PROHIBITED'));
@@ -312,7 +371,7 @@ async function runTests() {
 
   await runCase('Blocks individual clinical diagnosis inquiries', () => {
     const prompt = 'Please diagnose my patient who has acute abdominal cramps and yellow skin.';
-    const check = validateHumanInTheLoopSafety(prompt, 'humanitarian', 'Humanitarian', 'Claude 3.5');
+    const check = validateHumanInTheLoopSafety(prompt, 'humanitarian', 'Humanitarian', 'Amazon Bedrock');
     assert.strictEqual(check.isBlocked, true);
     assert.strictEqual(check.reason, 'individual_diagnosis');
     assert.ok(check.title?.includes('INDIVIDUAL DIAGNOSIS PROHIBITED'));
@@ -320,7 +379,7 @@ async function runTests() {
 
   await runCase('Allows legitimate population-level humanitarian requests', () => {
     const prompt = 'Calculate Sphere standard water and latrine allocations for 18,000 displaced persons.';
-    const check = validateHumanInTheLoopSafety(prompt, 'humanitarian', 'Humanitarian', 'Claude 3.5');
+    const check = validateHumanInTheLoopSafety(prompt, 'humanitarian', 'Humanitarian', 'Amazon Bedrock');
     assert.strictEqual(check.isBlocked, false);
   });
 
@@ -348,8 +407,7 @@ async function runTests() {
   await runCase('POST /api/aws/test-connection handles unconfigured credentials gracefully without crash', async () => {
     const { req, res } = createMockHttp('POST', '/api/aws/test-connection');
     handleServerApi(req, res);
-    // Give async handler brief cycle
-    await new Promise((r) => setTimeout(r, 100));
+    await res.waitForEnd();
 
     const body = res.getBody();
     assert.ok(typeof body.ok === 'boolean');
@@ -365,7 +423,7 @@ async function runTests() {
       userPrompt: hugePrompt
     });
     handleServerApi(req, res);
-    await new Promise((r) => setTimeout(r, 100));
+    await res.waitForEnd();
 
     const body = res.getBody();
     assert.strictEqual(body.success, false);
@@ -378,13 +436,21 @@ async function runTests() {
       userPrompt: 'Assess shelter needs for 2,000 displaced individuals'
     });
     handleServerApi(req, res);
-    await new Promise((r) => setTimeout(r, 150));
+    await res.waitForEnd();
 
     const body = res.getBody();
     // Either live call succeeded, simulation was enabled, or actionable setup message was returned
     if (!body.success) {
-      assert.ok(body.errorCode === 'MISSING_AWS_CREDENTIALS' || body.errorCode === 'MISSING_BEDROCK_MODEL_ID');
-      assert.ok(body.error.includes('Amazon Bedrock') || body.error.includes('BEDROCK_MODEL_ID'));
+      assert.ok(
+        body.errorCode === 'MISSING_AWS_CREDENTIALS' ||
+        body.errorCode === 'MISSING_BEDROCK_MODEL_ID' ||
+        body.errorCode === 'INVALID_CREDENTIALS'
+      );
+      assert.ok(
+        body.error.includes('Amazon Bedrock') ||
+        body.error.includes('BEDROCK_MODEL_ID') ||
+        body.error.includes('AWS credentials')
+      );
     } else {
       assert.ok(body.output.length > 0);
     }

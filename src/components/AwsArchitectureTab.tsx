@@ -114,9 +114,9 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
           supportedModels: [
             {
               id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-              name: 'Anthropic Claude 3.5 Sonnet v2',
+              name: 'Anthropic Claude Model (US Regional Profile)',
               provider: 'Anthropic on Amazon Bedrock',
-              description: 'Benchmark leader for complex humanitarian logframes, legal analysis, and clinical protocols.',
+              description: 'Regional inference profile for complex humanitarian logframes, legal analysis, and clinical protocols.',
               isDefault: true,
             },
             {
@@ -170,9 +170,9 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
         supportedModels: [
           {
             id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-            name: 'Anthropic Claude 3.5 Sonnet v2',
+            name: 'Anthropic Claude Model (US Regional Profile)',
             provider: 'Anthropic on Amazon Bedrock',
-            description: 'Benchmark leader for complex humanitarian logframes, legal analysis, and clinical protocols.',
+            description: 'Regional inference profile for complex humanitarian logframes, legal analysis, and clinical protocols.',
             isDefault: true,
           },
           {
@@ -394,7 +394,7 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
             </h2>
           </div>
           <span className="text-[10px] font-mono text-teal-200 bg-teal-500/20 px-2 py-0.5 rounded-full border border-teal-500/30">
-            Active: {selectedModel.split('.')[1]?.slice(0, 15) || 'Claude 3.5'}
+            Active: {selectedModel ? (selectedModel.split('.')[1]?.slice(0, 15) || selectedModel) : 'Bedrock Model'}
           </span>
         </div>
 
@@ -614,7 +614,7 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
             <div className="space-y-0.5 min-w-0 mr-2">
               <span className="text-[10px] uppercase font-mono text-cyan-300 font-bold">3. AI Foundation</span>
               <div className="text-white font-semibold truncate">Amazon Bedrock Converse API</div>
-              <p className="text-[10px] text-slate-300">Claude 3.5 Sonnet v2, Amazon Nova Pro, Amazon Nova Micro, Llama 3</p>
+              <p className="text-[10px] text-slate-300">Foundation Models via ConverseCommand (Claude, Nova, Llama)</p>
             </div>
             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#1C2541] text-cyan-200 shrink-0">@aws-sdk</span>
           </div>

@@ -49,7 +49,7 @@ graph TD
 
     subgraph AWS ["Amazon Web Services Infrastructure"]
         Bedrock["Amazon Bedrock Runtime\nConverse API (Cross-Region)"]
-        Claude["Anthropic Claude 3.5 Sonnet\nanthropic.claude-3-5-sonnet-20241022-v2:0"]
+        FoundationModel["Configured Foundation Model\ne.g., Anthropic Claude / Amazon Nova"]
         Nova["Amazon Nova Pro / Micro\namazon.nova-pro-v1:0"]
         S3Vault["Amazon S3 Evidence Vault\nSSE-KMS Encrypted Archive"]
         CloudWatch["Amazon CloudWatch\nLatency & Token Telemetry"]
@@ -63,7 +63,7 @@ graph TD
     MCP --> Security
     AgentAPI --> Security
     Security --> Bedrock
-    Bedrock --> Claude
+    Bedrock --> FoundationModel
     Bedrock --> Nova
     AgentAPI -.-> S3Vault
     AgentAPI -.-> CloudWatch
@@ -98,7 +98,7 @@ npm run dev
 | Variable | Description | Default | Required? |
 |:---|:---|:---:|:---:|
 | `UNLOCK_ALL_AGENTS` | Unlocks all 7 Pro agents and bypasses tier paywalls | `true` | Recommended |
-| `ALLOW_SIMULATED_RESPONSES` | If true, returns marked simulated answers when Bedrock fails. If false (default), returns clear actionable error | `false` | Optional |
+| `ALLOW_SIMULATED_RESPONSES` | When false (default), missing/failed Bedrock returns a clear setup error. Must be false for production and judging. If true (testing only), returns answers with a visible SIMULATED badge | `false` | Production: False |
 | `BEDROCK_MODEL_ID` | Amazon Bedrock Model or Inference Profile ID (e.g. `us.anthropic.claude-3-5-sonnet-20241022-v2:0`) | `""` | Required for Cloud |
 | `AWS_REGION` | AWS Region for Amazon Bedrock API calls | `us-east-1` | Optional |
 | `AWS_ACCESS_KEY_ID` | AWS IAM Access Key ID (Server-Side Only) | `""` | Required for Cloud |
@@ -177,7 +177,41 @@ curl -X POST http://localhost:3000/mcp \
   -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"humanitarian_emergency_response","arguments":{"location":"Lower Shabelle, Somalia","population":"18,000"}},"id":3}'
 ```
 
+### Testing with MCP Inspector (`@modelcontextprotocol/inspector`)
+
+You can test the Streamable HTTP MCP endpoint interactively using the official Model Context Protocol Inspector:
+
+```bash
+# Launch MCP Inspector pointing to the local streamable HTTP endpoint
+npx @modelcontextprotocol/inspector http://localhost:3000/mcp
+```
+
+- **Origin Policy**: External MCP clients (CLI, inspector, Claude Desktop) send no `Origin` header and are accepted.
+- **Browser Protection**: Web browser requests sent with an unrecognized `Origin` header are rejected with `403 Forbidden` to prevent cross-site RPC hijacking.
+
 In the web interface, open the **Alexa+** tab to use the built-in microphone simulator and inspect live JSON-RPC 2.0 request/response logs in real time.
+
+---
+
+### AWS Budget & Cloud Cost Protection
+
+To protect against runaway costs when exposing the application or running demonstrations, Nexus Impact AI enforces multiple layers of server-side cost protection:
+
+1. **Per-IP Rate Limiting**: Enforced in memory via sliding windows (`RATE_LIMIT_PER_MINUTE=10`, `RATE_LIMIT_PER_DAY=60`).
+2. **Global Daily Request Cap**: Global limit across all users (`DAILY_REQUEST_CAP=200`). This cap applies to both `/api/agent/generate` and `/mcp tools/call`.
+3. **Max Input Length**: Inputs exceeding `MAX_INPUT_LENGTH=10000` characters are rejected with a 400 error.
+4. **Token Generation Cap**: Bedrock `ConverseCommand` calls are capped at `MAX_TOKENS_CAP=2048` tokens.
+5. **Request Timeouts**: Calls to Bedrock are aborted after `REQUEST_TIMEOUT_MS=25000` (25 seconds).
+
+#### Setting Up an AWS Budget Alert
+
+We strongly recommend creating a zero-cost AWS Budget alert in your AWS account:
+
+1. Open the **AWS Billing and Cost Management Console** &rarr; **Budgets**.
+2. Click **Create budget** &rarr; Select **Cost budget (Recommended)**.
+3. Set your monthly target (e.g. **$10.00 USD**).
+4. Configure an alert threshold at **80% of actual spend** and **100% of forecasted spend**.
+5. Add your email address or an Amazon SNS topic to receive instant email notifications if Bedrock usage approaches your threshold.
 
 ---
 
@@ -200,7 +234,7 @@ npm run build
 
 Engineered specifically for IDPs, refugees, host communities, and frontline responders in low-connectivity zones of sub-Saharan Africa:
 - **Anonymous Use**: Zero accounts, zero login, zero tracking, zero third-party analytics scripts.
-- **Zero Server Prompt Logging**: Prompts and outputs are never saved to server logs or databases.
+- **Prompt Privacy**: This application does not log prompt text; Render and AWS maintain standard infrastructure and network logs.
 - **Client-Side PII Redaction**: Phone numbers, emails, UNHCR/national IDs, GPS coordinates, and victim names are scrubbed before any cloud call.
 - **On-Device AES-GCM 256-Bit Encryption**: Optional user passphrase protects local IndexedDB vault records using the browser Web Crypto API.
 - **Quick Exit / Panic Wipe**: Instant data erase button on every screen + `Esc` pressed 3 times clears IndexedDB, caches, and localStorage, redirecting to a neutral site.

@@ -23,7 +23,7 @@ Rather than treating AI as a conversational novelty, our AWS architecture enforc
 | Service | Specific API / Component | Concrete Operational Role in Nexus Impact AI |
 |:---|:---|:---|
 | **Amazon Bedrock** | `ConverseCommand` & `BedrockRuntimeClient` | Powers all 7 specialized AI agents. Takes structured system prompts (grounded in Sphere 2018 Standards, WHO EWARS, and USAID guidelines) and user inputs, outputting validated markdown tables and voice summaries. |
-| **Amazon Bedrock Foundation Models** | `anthropic.claude-3-5-sonnet-20241022-v2:0`<br>`amazon.nova-pro-v1:0`<br>`amazon.nova-micro-v1:0`<br>`meta.llama3-70b-instruct-v1:0` | - **Claude 3.5 Sonnet v2**: High-rigor 7-section donor grant logframes, legal briefs, and CEmONC clinical algorithms.<br>- **Nova Pro**: Multimodal evidence review and evaluation benchmark synthesis.<br>- **Nova Micro**: Lowest-latency edge device inference.<br>- **Llama 3 70B**: Open weights powerhouse. |
+| **Amazon Bedrock Foundation Models** | Configured via `BEDROCK_MODEL_ID` (e.g. `us.anthropic.claude-3-5-sonnet-20241022-v2:0`, `amazon.nova-pro-v1:0`, `amazon.nova-micro-v1:0`, `meta.llama3-70b-instruct-v1:0`) | - **Anthropic Claude**: High-rigor 7-section donor grant logframes, legal briefs, and clinical algorithms.<br>- **Nova Pro**: Multimodal evidence review and evaluation benchmark synthesis.<br>- **Nova Micro**: Lowest-latency edge device inference.<br>- **Llama 3 70B**: Open weights powerhouse. |
 | **Amazon Bedrock Guardrails** | `guardrailIdentifier` & `guardrailVersion` | Enforces enterprise content filtering, toxic prompt mitigation, surveillance/targeting blocking, and Do No Harm humanitarian boundaries directly at the foundational model inference layer via `BEDROCK_GUARDRAIL_ID`. |
 | **Amazon S3** (Evidence Vault) | S3 Document Archival Integration | Archives finalized humanitarian emergency response plans and USAID donor proposals with SHA-256 tamper-evident integrity hashes, presigned URLs, and server-side KMS encryption metadata. |
 | **AWS Key Management Service (AWS KMS)** | Customer Master Keys (CMK) | Server-side KMS envelope encryption (`aws:kms`) on archived humanitarian assessments and sensitive human rights memos using customer-managed keys. |
@@ -114,7 +114,7 @@ All model inferences flow strictly through the server-side API handler and the S
 ## 6. Model Verification & Deprecation Checks
 
 Nexus Impact AI explicitly avoids deprecated model identifiers:
-- `anthropic.claude-3-5-sonnet-20241022-v2:0` (Current Claude 3.5 Sonnet v2)
+- `us.anthropic.claude-3-5-sonnet-20241022-v2:0` (Anthropic Claude US inference profile)
 - `amazon.nova-pro-v1:0` (Amazon Nova Pro multimodal reasoning)
 - `amazon.nova-micro-v1:0` (Amazon Nova Micro ultra-low latency)
 

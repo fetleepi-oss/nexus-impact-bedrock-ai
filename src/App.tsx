@@ -14,7 +14,8 @@ import {
   Radio,
   Users,
   Zap,
-  Play
+  Play,
+  AlertTriangle
 } from 'lucide-react';
 import { AGENTS, AgentConfig, getAgentById } from './agents';
 import {
@@ -51,6 +52,9 @@ export default function App() {
   const [selectedAgent, setSelectedAgent] = useState<AgentConfig>(AGENTS[0]);
   const [activeWorkspacePrompt, setActiveWorkspacePrompt] = useState<string>('');
   const [attachedKbItem, setAttachedKbItem] = useState<KnowledgeItem | null>(null);
+
+  // Simulated Mode banner state (read from /api/health)
+  const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(false);
 
   // AWS Bedrock Model Selection
   const [selectedModel, setSelectedModel] = useState<string>('');
@@ -92,6 +96,9 @@ export default function App() {
     fetch('/api/health')
       .then((r) => r.json())
       .then((data) => {
+        if (typeof data.allowSimulatedResponses === 'boolean') {
+          setIsSimulatedMode(data.allowSimulatedResponses);
+        }
         if (data.bedrockModelId) {
           setConfiguredModelId(data.bedrockModelId);
           setSelectedModel(data.bedrockModelId);
@@ -210,6 +217,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#0B132B] text-slate-100 font-sans antialiased flex flex-col selection:bg-teal-500 selection:text-slate-950 w-full overflow-x-hidden">
+      {/* Top simulated mode banner */}
+      {isSimulatedMode && (
+        <div
+          role="status"
+          className="bg-amber-500 text-slate-950 font-bold text-xs py-2 px-4 text-center border-b border-amber-600 flex items-center justify-center gap-2 tracking-wide shadow-sm"
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 text-slate-950" aria-hidden="true" />
+          <span>Simulated mode is ON (testing only)</span>
+        </div>
+      )}
+
       {/* Top Header */}
       <Header
         remainingGenerations={remainingGenerations}
@@ -281,7 +299,7 @@ export default function App() {
                 <div className="pt-2 flex items-center justify-between text-[11px] text-slate-300 border-t border-[#2E3C62] gap-2 flex-wrap">
                   <span className="flex items-center gap-1.5 font-medium">
                     <span className="w-2 h-2 rounded-full bg-teal-400" />
-                    <span>Judge Access: <strong className="text-white">Demo Mode Active (All 7 Unlocked)</strong></span>
+                    <span><strong className="text-white">All agents unlocked</strong></span>
                   </span>
                   <button
                     type="button"

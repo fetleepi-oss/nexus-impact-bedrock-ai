@@ -73,7 +73,7 @@ export const OfflineKnowledgePackModal: React.FC<OfflineKnowledgePackModalProps>
               <h2 id="knowledge-pack-title" className="text-base font-bold text-white flex items-center gap-2">
                 <span>Bundled Offline Knowledge Pack</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">
-                  100% Offline RAG
+                  Local Offline Knowledge Pack
                 </span>
               </h2>
               <p className="text-xs text-slate-300">

@@ -165,11 +165,11 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
                 Nexus Impact AI is engineered strictly for anonymous, account-less use in vulnerable displacement settings, crisis zones, and low-connectivity environments.
               </p>
               <div className="space-y-2 p-3 rounded-xl bg-[#1C2541]/70 border border-[#2E3C62]">
-                <h4 className="font-bold text-teal-200">Core Guarantees:</h4>
+                <h4 className="font-bold text-teal-200">Core Privacy Principles:</h4>
                 <ul className="list-disc pl-5 space-y-1 text-slate-300">
                   <li><strong>Zero Accounts &amp; Zero Login:</strong> We never ask for names, email addresses, phone numbers, or passwords.</li>
                   <li><strong>Zero Tracking &amp; Analytics:</strong> No tracking pixels, Google Analytics, social media trackers, or canvas fingerprinting.</li>
-                  <li><strong>Zero Server Prompt Logging:</strong> Inbound prompts and generated outputs are never saved to disk, database, or server logs.</li>
+                  <li><strong>No Application Prompt Logging:</strong> This application does not log prompt text or generated answers. Note: Render and AWS infrastructure maintain standard network connection logs.</li>
                   <li><strong>Client-Side PII Redaction:</strong> Identifying details (emails, phone numbers, GPS coordinates, UNHCR numbers) are scrubbed in the browser before any cloud inference.</li>
                   <li><strong>Optional Web Crypto AES-GCM Encryption:</strong> All on-device cache can be sealed using your personal passphrase.</li>
                   <li><strong>Panic Wipe / Quick Exit:</strong> Pressing Esc 3 times or clicking Panic Wipe instantly erases all local caches, IndexedDB, and localStorage.</li>
@@ -250,15 +250,15 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
             <div className="space-y-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Eye className="w-4 h-4 text-teal-400" />
-                Accessibility Statement (WCAG 2.2 AAA &amp; Offline Inclusivity)
+                Accessibility Statement (Designed toward WCAG 2.1 AA &amp; Offline Inclusivity)
               </h3>
               <p>
-                We are committed to full digital accessibility for crisis responders, persons with disabilities, and low-literacy users:
+                We are committed to digital accessibility for crisis responders, persons with disabilities, and low-literacy users. Accessibility features are designed toward WCAG 2.1 AA guidelines (not formally audited by an external third party):
               </p>
               <ul className="list-disc pl-5 space-y-1.5 text-slate-300">
                 <li><strong>Mobile Viewport:</strong> Fully operational at 360px viewport width without horizontal scroll.</li>
-                <li><strong>High Contrast Mode:</strong> WCAG AAA contrast ratio (&gt;7:1) available with one tap.</li>
-                <li><strong>Screen Readers &amp; ARIA:</strong> Complete ARIA labels, live regions, and semantic landmark roles.</li>
+                <li><strong>High Contrast Mode:</strong> High contrast color palette (&gt;4.5:1 / 7:1) available with one tap.</li>
+                <li><strong>Screen Readers &amp; ARIA:</strong> Semantic HTML landmarks, ARIA labels, and live regions.</li>
                 <li><strong>Reduced Motion:</strong> Automatically honors user OS prefers-reduced-motion preferences.</li>
                 <li><strong>Speech &amp; Audio:</strong> Built-in voice input and audio readout for low-literacy field volunteers.</li>
                 <li><strong>Plain-Language Mode:</strong> Generates concise summaries with simplified grammar for rapid comprehension.</li>

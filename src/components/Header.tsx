@@ -106,7 +106,7 @@ export const Header: React.FC<HeaderProps> = ({
   const activeModelId = configuredModelId || selectedModel;
   const displayModelName = activeModelId
     ? `${activeModelId} (${configuredRegion})`
-    : 'Bedrock Model Not Set';
+    : 'Cloud AI not configured';
 
   useEffect(() => {
     const updateNetworkStatus = () => {
@@ -223,10 +223,10 @@ export const Header: React.FC<HeaderProps> = ({
                     type="button"
                     onClick={onOpenPaywall}
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-teal-400 hover:bg-teal-300 text-slate-950 cursor-pointer shadow-xs"
-                    title="Hackathon Demo Mode Active: All 7 Pro Agents Unlocked for Judges"
+                    title="All 7 Pro Agents Unlocked"
                   >
                     <CheckCircle2 className="w-2.5 h-2.5" aria-hidden="true" />
-                    <span>DEMO UNLOCKED</span>
+                    <span>All agents unlocked</span>
                   </button>
                 ) : isPro ? (
                   <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">

@@ -101,7 +101,7 @@ export const PaywallModal: React.FC<PaywallModalProps> = ({
             <div className="flex items-center justify-between">
               <span className="font-bold text-teal-200 flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4 text-teal-300" />
-                <span>Hackathon Demo Mode Active</span>
+                <span>All agents unlocked</span>
               </span>
               <span className="px-2 py-0.5 rounded-full bg-teal-400 text-slate-950 font-black text-[9px]">
                 ALL UNLOCKED

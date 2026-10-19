@@ -3,7 +3,7 @@
  * Caches complete app shell assets, fonts, icons, and dynamic bundles
  * enabling robust offline field operations.
  */
-const CACHE_NAME = 'nexus-impact-shell-v2';
+const CACHE_NAME = 'nexus-impact-shell-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -42,29 +42,63 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  // Bypass API and MCP routes - those are handled by the client router & IndexedDB queue
+
+  // 1. Bypass API and MCP routes - handled by client router & IndexedDB queue
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/mcp')) {
     return;
   }
-  // Only intercept GET requests
+
+  // 2. Bypass Vite dev server modules, preview hosts, and auth URLs so preview never breaks
+  if (
+    url.pathname.startsWith('/@') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('vite') ||
+    url.pathname.endsWith('.ts') ||
+    url.pathname.endsWith('.tsx') ||
+    url.searchParams.has('auth_token') ||
+    url.searchParams.has('authToken') ||
+    url.searchParams.has('token') ||
+    url.searchParams.has('authuser') ||
+    url.searchParams.has('t') ||
+    url.hostname.includes('googleusercontent') ||
+    url.hostname.includes('aistudio') ||
+    url.hostname.includes('localhost') ||
+    url.hostname === '127.0.0.1'
+  ) {
+    return;
+  }
+
+  // 3. Only intercept GET requests
   if (event.request.method !== 'GET') {
     return;
   }
+
+  // 4. For page navigation (HTML documents), use Network-First to guarantee fresh code
+  // and fall back to cached index.html offline (ignoring query strings/tokens)
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cached = await caches.match('/index.html', { ignoreSearch: true });
+          if (cached) return cached;
+          return caches.match('/', { ignoreSearch: true });
+        })
+    );
+    return;
+  }
+
+  // 5. For static assets (CSS, JS, images, icons, fonts), Stale-While-Revalidate with ignoreSearch
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse);
-              });
-            }
-          })
-          .catch(() => {});
-        return cachedResponse;
-      }
-      return fetch(event.request)
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
           if (
             networkResponse &&
@@ -78,11 +112,9 @@ self.addEventListener('fetch', (event) => {
           }
           return networkResponse;
         })
-        .catch(() => {
-          if (event.request.mode === 'navigate') {
-            return caches.match('/index.html') || caches.match('/');
-          }
-        });
+        .catch(() => cachedResponse);
+
+      return cachedResponse || fetchPromise;
     })
   );
 });

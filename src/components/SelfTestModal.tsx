@@ -108,12 +108,23 @@ export const SelfTestModal: React.FC<SelfTestModalProps> = ({ isOpen, onClose })
 
   const [isRunningAll, setIsRunningAll] = useState(false);
   const [copiedReport, setCopiedReport] = useState(false);
+  const [isSimulatedMode, setIsSimulatedMode] = useState(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
-    if (isOpen) window.addEventListener('keydown', handleKeyDown);
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      fetch('/api/health')
+        .then((r) => r.json())
+        .then((data) => {
+          if (typeof data.allowSimulatedResponses === 'boolean') {
+            setIsSimulatedMode(data.allowSimulatedResponses);
+          }
+        })
+        .catch(() => {});
+    }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
@@ -176,7 +187,7 @@ export const SelfTestModal: React.FC<SelfTestModalProps> = ({ isOpen, onClose })
       if (testData.length > 10) {
         updateTest('qr_generator', {
           status: 'passed',
-          message: 'Passed: Offline 2D SVG bit-matrix generator operational. Works 100% offline without external services.',
+          message: 'Passed: Offline 2D SVG bit-matrix generator operational. Works fully offline without external services.',
           details: 'Deterministic finder patterns + payload encoding validated.'
         });
       }
@@ -355,6 +366,17 @@ export const SelfTestModal: React.FC<SelfTestModalProps> = ({ isOpen, onClose })
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Simulated Mode Warning Banner */}
+        {isSimulatedMode && (
+          <div
+            role="alert"
+            className="px-4 py-2 bg-amber-500/20 border-b border-amber-500/50 text-amber-200 text-xs font-bold flex items-center gap-2"
+          >
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" aria-hidden="true" />
+            <span>Simulated mode is ON (testing only)</span>
+          </div>
+        )}
 
         {/* Toolbar & Scorecard */}
         <div className="px-5 py-3 bg-[#080E20] border-b border-[#1C2541] flex items-center justify-between gap-3 flex-wrap">

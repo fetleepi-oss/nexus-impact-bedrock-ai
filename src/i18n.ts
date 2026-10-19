@@ -232,7 +232,7 @@ export const DICTIONARY: Record<SupportedLanguage, Partial<Record<TranslationKey
     eval_tab: 'Evaluation',
     online_badge: 'Cloud (Bedrock)',
     offline_badge: 'On-device (offline)',
-    demo_mode_badge: 'DEMO UNLOCKED',
+    demo_mode_badge: 'All agents unlocked',
     panic_wipe_btn: 'Panic Wipe / Quick Exit',
     privacy_policy: 'Privacy Policy',
     terms_of_use: 'Terms of Use',

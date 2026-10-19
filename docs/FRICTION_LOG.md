@@ -20,7 +20,7 @@
 ---
 
 ### Incident 2: Cross-Region Bedrock Model ID Formatting in AWS SDK v3
-- **Task:** Invoking Claude 3.5 Sonnet v2 through the Amazon Bedrock Converse API in non-`us-east-1` regions (e.g. `eu-west-1` or `eu-central-1`).
+- **Task:** Invoking regional inference profiles through the Amazon Bedrock Converse API in non-`us-east-1` regions (e.g. `eu-west-1` or `eu-central-1`).
 - **Steps Taken:**
   1. Configured `AWS_REGION=eu-west-1` in `.env`.
   2. Passed `modelId: "anthropic.claude-3-5-sonnet-20241022-v2:0"` to `ConverseCommand`.

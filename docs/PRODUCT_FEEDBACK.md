@@ -9,12 +9,12 @@
 ## 1. Amazon Bedrock Converse API Feedback
 
 ### Strengths
-1. **Unified Schema Across Diverse Providers**: The `ConverseCommand` is a tremendous improvement over provider-specific `invokeModel` request bodies. Switching from Anthropic Claude 3.5 Sonnet to Amazon Nova Pro required modifying only the `modelId` string without altering message payloads or parsing logic.
+1. **Unified Schema Across Diverse Providers**: The `ConverseCommand` is a tremendous improvement over provider-specific `invokeModel` request bodies. Switching between Anthropic Claude and Amazon Nova Pro required modifying only the `modelId` string without altering message payloads or parsing logic.
 2. **System Prompt Grounding**: Clean architectural separation between `system` instructions and conversational `messages` prevents prompt injection attacks and ensures agents strictly adhere to Sphere 2018 Standards and WHO EWARS frameworks.
 3. **Enterprise Data Privacy Guarantees**: For social impact, human rights, and humanitarian data, Amazon Bedrock's enterprise privacy policy (zero customer data retained for base model training) is indispensable for organizational trust.
 
 ### Areas for Improvement
-1. **Automated Fallback Profiles**: When a primary foundation model encounters regional capacity spikes or rate limiting (`ThrottlingException`), having an automated fallback profile within Bedrock (e.g., automatically stepping from Claude 3.5 Sonnet to Nova Pro) would significantly enhance field reliability during acute crises.
+1. **Automated Fallback Profiles**: When a primary foundation model encounters regional capacity spikes or rate limiting (`ThrottlingException`), having an automated fallback profile within Bedrock (e.g., automatically stepping from an Anthropic model to Nova Pro) would significantly enhance field reliability during acute crises.
 2. **Native Token Cost Transparency**: Providing calculated USD costs directly inside `ConverseResponse.usage` (e.g. `estimatedCostUsd`) would enable resource-constrained NGOs to track operational budgets in real time.
 3. **Cross-Region Inference Helper**: The SDK should provide native helper methods to automatically resolve cross-region inference profile prefixes (e.g., `us.` or `eu.`) without requiring developers to manually build prefix mappers.
 

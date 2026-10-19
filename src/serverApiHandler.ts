@@ -123,9 +123,8 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
   const url = req.url ? req.url.split('?')[0] : '';
   const clientIp = (req.headers && (req.headers['x-forwarded-for'] || req.socket?.remoteAddress)) || '127.0.0.1';
 
-  // Apply strict security headers
+  // Apply strict security headers (allow iframe embedding in preview environments)
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');
 
@@ -215,9 +214,9 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
         },
         {
           id: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
-          name: 'Anthropic Claude 3.5 Sonnet v2 (US Regional Profile)',
+          name: 'Anthropic Claude Model (US Regional Profile)',
           provider: 'Anthropic on Amazon Bedrock',
-          description: 'Benchmark leader for complex humanitarian logframes and clinical triage.',
+          description: 'Regional inference profile for complex humanitarian logframes and clinical triage.',
           isDefault: configuredModel === 'us.anthropic.claude-3-5-sonnet-20241022-v2:0',
         },
         {
@@ -418,12 +417,13 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
         }
 
         let output = bedrockResult.output;
-        let voiceSummary = bedrockResult.voiceSummary;
-
         if (!bedrockResult.success) {
-          const fallback = generateDomainOutput(agentId, typeof input === 'string' ? input : JSON.stringify(input));
-          output = `> Note: Bedrock cloud call inactive (${bedrockResult.error || 'credentials not provided'}). Serving domain guideline baseline.\n\n${fallback.output}`;
-          voiceSummary = fallback.voiceSummary;
+          res.setHeader('Content-Type', 'application/json');
+          res.statusCode = 400;
+          return res.end(JSON.stringify({
+            status: 'error',
+            error: bedrockResult.error || 'Amazon Bedrock unavailable. Configure credentials or enable ALLOW_SIMULATED_RESPONSES for testing.'
+          }));
         }
 
         res.setHeader('Content-Type', 'application/json');
@@ -432,7 +432,9 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
           toolName,
           output,
           voiceSummary,
-          usedRealBedrock: bedrockResult.usedRealBedrock
+          usedRealBedrock: bedrockResult.usedRealBedrock,
+          isSimulated: Boolean(bedrockResult.isSimulated),
+          simulated: Boolean(bedrockResult.isSimulated)
         }));
       } catch (err: any) {
         res.setHeader('Content-Type', 'application/json');
@@ -443,7 +445,38 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
     return true;
   }
 
-  // 7. MCP Protocol (Spec 2025-11-25) SSE Stream
+  // 7. MCP Protocol Origin Validation (Spec 2025-11-25)
+  // External MCP clients (CLI, inspector, Claude Desktop) send no Origin and must be accepted.
+  // Unknown browser origins are rejected with 403 Forbidden.
+  if (url === '/mcp' || url === '/api/mcp') {
+    const origin = req.headers && (req.headers['origin'] || req.headers['Origin']);
+    if (origin) {
+      const host = (req.headers && (req.headers['host'] || req.headers['Host'])) || '';
+      const isAllowedOrigin =
+        origin === 'null' ||
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1') ||
+        origin.includes('onrender.com') ||
+        origin.includes('googleusercontent.com') ||
+        origin.includes('aistudio.google.com') ||
+        (host && origin.includes(host));
+
+      if (!isAllowedOrigin) {
+        res.statusCode = 403;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({
+          jsonrpc: '2.0',
+          error: { code: -32003, message: 'Forbidden: origin not allowed for MCP endpoint' },
+          id: null
+        }));
+        return true;
+      }
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Vary', 'Origin');
+    }
+  }
+
+  // MCP Protocol (Spec 2025-11-25) SSE Stream
   if ((url === '/mcp' || url === '/api/mcp') && req.method === 'GET') {
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
@@ -579,9 +612,14 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
           let voiceSummary = bedrockResult.voiceSummary;
 
           if (!bedrockResult.success) {
-            const fallback = generateDomainOutput(agentId, promptStr);
-            output = fallback.output;
-            voiceSummary = fallback.voiceSummary;
+            return res.end(JSON.stringify({
+              jsonrpc: '2.0',
+              error: {
+                code: -32603,
+                message: `Amazon Bedrock unavailable (${bedrockResult.errorCode || 'ERROR'}): ${bedrockResult.error || 'Inference failed'}. Configure AWS credentials or set ALLOW_SIMULATED_RESPONSES=true for testing.`
+              },
+              id: id ?? null
+            }));
           }
 
           return res.end(JSON.stringify({
@@ -592,7 +630,8 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
                 voiceSummary,
                 tool: toolName,
                 usedRealBedrock: bedrockResult.usedRealBedrock,
-                isSimulated: bedrockResult.isSimulated,
+                isSimulated: Boolean(bedrockResult.isSimulated),
+                simulated: Boolean(bedrockResult.isSimulated),
                 timestamp: new Date().toISOString()
               }
             },
