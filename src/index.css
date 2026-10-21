@@ -3,6 +3,7 @@
 @layer base {
   :root {
     color-scheme: dark;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Ethiopic', 'Abyssinica SIL', 'Nyala', 'Noto Sans Arabic', 'Segoe UI Arabic', sans-serif;
   }
 
   /* Universal accessible keyboard focus ring */

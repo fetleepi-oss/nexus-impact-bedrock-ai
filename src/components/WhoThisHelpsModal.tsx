@@ -204,7 +204,10 @@ export const WhoThisHelpsModal: React.FC<WhoThisHelpsModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end pt-2 border-t border-[#1C2541]">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-[#1C2541]">
+          <span className="text-[10px] text-slate-400 italic">
+            All translations are machine-assisted and under community review.
+          </span>
           <button
             type="button"
             onClick={onClose}

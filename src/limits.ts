@@ -104,7 +104,7 @@ export const isDemoModeActive = isUnlockAllAgentsActive;
 export const setDemoMode = setUnlockAllAgents;
 
 /**
- * Checks whether the user has active "pro" entitlement (or Demo Mode is active)
+ * Checks whether the user has active "pro" entitlement (or all agents are unlocked)
  */
 export function isProEntitled(): boolean {
   if (typeof window === 'undefined') return true;
@@ -140,37 +140,12 @@ export function setProEntitlement(isPro: boolean, details?: Partial<EntitlementS
 }
 
 /**
- * Check generation permission for an agent
+ * Check generation permission for an agent - All 7 agents are 100% free
  */
-export function canGenerate(tier: 'free' | 'pro', agentId?: string): {
+export function canGenerate(_tier?: 'free' | 'pro', _agentId?: string): {
   allowed: boolean;
   reason?: 'pro_required' | 'daily_limit_reached';
 } {
-  // Hackathon Demo Mode unlocks everything for judges
-  if (isDemoModeActive()) {
-    return { allowed: true };
-  }
-
-  // Knowledge Base is always free and unrestricted
-  if (agentId === 'knowledge_base') {
-    return { allowed: true };
-  }
-
-  const isPro = isProEntitled();
-  if (isPro) {
-    return { allowed: true };
-  }
-
-  if (tier === 'pro') {
-    return { allowed: false, reason: 'pro_required' };
-  }
-
-  // Free tier agent: check daily limit
-  const remaining = getRemainingFreeGenerations();
-  if (remaining <= 0) {
-    return { allowed: false, reason: 'daily_limit_reached' };
-  }
-
   return { allowed: true };
 }
 

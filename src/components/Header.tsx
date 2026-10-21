@@ -26,7 +26,6 @@ import {
   Lock,
   FileText
 } from 'lucide-react';
-import { isDemoModeActive, setDemoMode } from '../limits';
 import {
   isAppOnline,
   isSimulatedOffline,
@@ -48,9 +47,6 @@ import { getFieldModeConfig, saveFieldModeConfig, FieldModeConfig } from '../fie
 import { executePanicWipe } from '../privacyRedaction';
 
 interface HeaderProps {
-  remainingGenerations: number;
-  isPro: boolean;
-  onOpenPaywall: () => void;
   onOpenAwsTab?: () => void;
   onOpenAlexaTab?: () => void;
   onOpenWhoThisHelps?: () => void;
@@ -65,12 +61,11 @@ interface HeaderProps {
   selectedModel?: string;
   configuredModelId?: string;
   configuredRegion?: string;
+  bedrockConfigured?: boolean;
+  isSimulatedMode?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  remainingGenerations,
-  isPro,
-  onOpenPaywall,
   onOpenAwsTab,
   onOpenAlexaTab,
   onOpenWhoThisHelps,
@@ -84,14 +79,27 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenSelfTest,
   selectedModel = '',
   configuredModelId = '',
-  configuredRegion = 'us-east-1'
+  configuredRegion = 'us-east-1',
+  bedrockConfigured = false,
+  isSimulatedMode = false
 }) => {
   const [isOnline, setIsOnline] = useState<boolean>(true);
   const [isSimOffline, setIsSimOffline] = useState<boolean>(false);
   const [queuedCount, setQueuedCount] = useState<number>(0);
-  const [demoMode, setDemoState] = useState<boolean>(true);
   const [modelStatus, setModelStatus] = useState<OnDeviceModelStatus | null>(null);
   const [dataUsageBytes, setDataUsageBytes] = useState<number>(getDataUsageBytes());
+
+  // Live health state from /api/health
+  const [healthBedrockConfigured, setHealthBedrockConfigured] = useState<boolean>(bedrockConfigured);
+  const [healthSimulatedMode, setHealthSimulatedMode] = useState<boolean>(isSimulatedMode);
+  const [healthModelId, setHealthModelId] = useState<string>(configuredModelId);
+  const [connectionTestPassed, setConnectionTestPassed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('nexus_bedrock_test_passed') === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // Multilingual state
   const [activeLang, setActiveLang] = useState<SupportedLanguage>(getActiveLanguage());
@@ -100,15 +108,65 @@ export const Header: React.FC<HeaderProps> = ({
   // Field Mode state
   const [fieldConfig, setFieldConfig] = useState<FieldModeConfig>(getFieldModeConfig());
 
+  // Offline Ready state (active only when service worker controller or shell cache is ready)
+  const [isOfflineReady, setIsOfflineReady] = useState<boolean>(() => {
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      return true;
+    }
+    return false;
+  });
+
   // Panic wipe key listener: 3 Esc presses within 1.5 seconds
   const escPressesRef = useRef<number[]>([]);
 
-  const activeModelId = configuredModelId || selectedModel;
-  const displayModelName = activeModelId
-    ? `${activeModelId} (${configuredRegion})`
-    : 'Cloud AI not configured';
+  const effectiveBedrockConfigured = healthBedrockConfigured || bedrockConfigured;
+  const activeModelId = healthModelId || configuredModelId || selectedModel;
+  // Use "Amazon Bedrock (model ID)" wording only when Bedrock is configured AND connection test succeeded
+  const isBedrockActive = Boolean(effectiveBedrockConfigured && activeModelId && connectionTestPassed);
+
+  const modeHeaderLabel = !isOnline
+    ? 'On-device (offline, lower accuracy)'
+    : isBedrockActive
+      ? `Amazon Bedrock (${activeModelId})`
+      : 'Simulated mode (no cloud AI)';
 
   useEffect(() => {
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((data) => {
+        if (typeof data.bedrockConfigured === 'boolean') {
+          setHealthBedrockConfigured(data.bedrockConfigured);
+        }
+        if (typeof data.allowSimulatedResponses === 'boolean') {
+          setHealthSimulatedMode(data.allowSimulatedResponses);
+        }
+        if (data.bedrockModelId) {
+          setHealthModelId(data.bedrockModelId);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const checkOfflineReady = async () => {
+      try {
+        if (typeof window !== 'undefined' && 'caches' in window) {
+          const keys = await caches.keys();
+          const hasCache = keys.some((k) => k.startsWith('nexus-impact-shell'));
+          if (hasCache) {
+            setIsOfflineReady(true);
+            return;
+          }
+        }
+        if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          setIsOfflineReady(true);
+        }
+      } catch {
+        // Fallback
+      }
+    };
+    checkOfflineReady();
+
     const updateNetworkStatus = () => {
       setIsOnline(isAppOnline());
       setIsSimOffline(isSimulatedOffline());
@@ -116,9 +174,6 @@ export const Header: React.FC<HeaderProps> = ({
     const updateQueueCount = async () => {
       const queued = await getQueuedRequests();
       setQueuedCount(queued.length);
-    };
-    const updateDemoState = () => {
-      setDemoState(isDemoModeActive());
     };
     const handleLangChanged = (e: any) => {
       if (e.detail?.language) setActiveLang(e.detail.language);
@@ -132,17 +187,18 @@ export const Header: React.FC<HeaderProps> = ({
 
     updateNetworkStatus();
     updateQueueCount();
-    updateDemoState();
 
     const unsubModel = subscribeToModelStatus((s) => setModelStatus(s));
     window.addEventListener('online', updateNetworkStatus);
     window.addEventListener('offline', updateNetworkStatus);
     window.addEventListener('nexus_network_status_changed', updateNetworkStatus);
     window.addEventListener('nexus_offline_queue_updated', updateQueueCount);
-    window.addEventListener('nexus_demo_mode_updated', updateDemoState);
     window.addEventListener('nexus_language_changed', handleLangChanged);
     window.addEventListener('nexus_field_mode_changed', handleFieldChanged);
     window.addEventListener('nexus_data_usage_updated', handleDataUsage);
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('controllerchange', checkOfflineReady);
+    }
 
     // Esc x 3 Panic Wipe listener
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -163,7 +219,6 @@ export const Header: React.FC<HeaderProps> = ({
       window.removeEventListener('offline', updateNetworkStatus);
       window.removeEventListener('nexus_network_status_changed', updateNetworkStatus);
       window.removeEventListener('nexus_offline_queue_updated', updateQueueCount);
-      window.removeEventListener('nexus_demo_mode_updated', updateDemoState);
       window.removeEventListener('nexus_language_changed', handleLangChanged);
       window.removeEventListener('nexus_field_mode_changed', handleFieldChanged);
       window.removeEventListener('nexus_data_usage_updated', handleDataUsage);
@@ -218,28 +273,20 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-sm font-extrabold tracking-tight text-white leading-tight truncate">
                   Nexus Impact AI
                 </span>
-                {demoMode ? (
-                  <button
-                    type="button"
-                    onClick={onOpenPaywall}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-teal-400 hover:bg-teal-300 text-slate-950 cursor-pointer shadow-xs"
-                    title="All 7 Pro Agents Unlocked"
-                  >
-                    <CheckCircle2 className="w-2.5 h-2.5" aria-hidden="true" />
-                    <span>All agents unlocked</span>
-                  </button>
-                ) : isPro ? (
-                  <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400 text-slate-950">
-                    <Crown className="w-2.5 h-2.5 fill-slate-950" aria-hidden="true" />
-                    <span>PRO ACTIVE</span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-400/20 text-teal-300 border border-teal-400/40">
+                  <CheckCircle2 className="w-2.5 h-2.5" aria-hidden="true" />
+                  <span>Free &amp; Open Source</span>
+                </span>
+                {isOfflineReady && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30" title="Offline ready: App shell and knowledge pack cached locally">
+                    <HardDrive className="w-2.5 h-2.5" aria-hidden="true" />
+                    <span>Offline ready</span>
                   </span>
-                ) : null}
+                )}
               </div>
               <p className="text-[10px] text-teal-200 font-medium leading-none flex items-center gap-1 mt-0.5 font-mono truncate">
-                <span>{isOnline ? 'Cloud (Bedrock)' : 'On-device (offline, lower accuracy)'}</span>
-                <span>&middot;</span>
-                <span className="text-amber-300 font-semibold truncate max-w-[200px]" title={displayModelName}>
-                  {isOnline ? displayModelName : 'SmolLM-135M'}
+                <span className="text-amber-300 font-semibold truncate max-w-[260px]" title={modeHeaderLabel}>
+                  {modeHeaderLabel}
                 </span>
                 <span>&middot;</span>
                 <span className="text-cyan-300">{SUPPORTED_LANGUAGES[activeLang].nativeName}</span>
@@ -394,9 +441,11 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="flex items-center gap-1">
             <Lock className="w-2.5 h-2.5 text-teal-400 shrink-0" />
             <span>
-              {isOnline
-                ? 'Cloud requests pass through server to Amazon Bedrock (never logged)'
-                : 'Offline mode never leaves this device (on-device local execution)'}
+              {!isOnline
+                ? 'Offline mode never leaves this device (on-device local execution)'
+                : isBedrockActive
+                  ? `Online requests are processed by Amazon Bedrock (${activeModelId}). This app does not log prompt text.`
+                  : 'Simulated answers from a bundled knowledge pack. No cloud AI is used. This app does not log prompt text.'}
             </span>
           </span>
           <span className="text-[9px] text-slate-400">

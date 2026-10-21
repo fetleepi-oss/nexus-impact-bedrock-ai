@@ -8,7 +8,7 @@
 
 ## 1. Project Summary (Exactly 150 Words)
 
-Nexus Impact AI is an offline-first, mobile workspace providing seven domain-specialized AI agents for frontline humanitarian responders, epidemiologists, and social impact researchers. Powered by Amazon Bedrock (Converse API with Foundation Models including Anthropic Claude and Amazon Nova) and self-hosted over Streamable HTTP Model Context Protocol (MCP 2025-11-25), Nexus eliminates the generic, unreliable outputs of consumer chatbots. Responders can speak directly into Alexa+ or our simulator to calculate emergency Sphere Standards (15 liters of potable water per person daily), model outbreak doubling times, or architect donor-grade 7-section USAID and ECHO grant proposals with logframes. When disaster strikes and connectivity drops, Nexus operates honestly: caching verified outputs in local IndexedDB, clearly labeling offline results, and queuing urgent field requests to automatically drain upon reconnection. By bridging enterprise AWS foundation models with real-world edge usability, Nexus Impact AI turns high-stakes field complexity into actionable, life-saving operational blueprints.
+Nexus Impact AI is an offline-first, mobile workspace providing seven domain-specialized AI agents for frontline humanitarian responders, epidemiologists, and social impact researchers. Powered by Amazon Bedrock (Converse API with Foundation Models including Anthropic Claude and Amazon Nova) and self-hosted over Streamable HTTP Model Context Protocol (MCP 2025-11-25), Nexus eliminates the generic, unreliable outputs of consumer chatbots. Responders can speak directly into Alexa+ or our simulator to calculate emergency Sphere Standards (15 liters of potable water per person daily), model outbreak doubling times, or architect donor-grade 7-section USAID and ECHO grant proposals with logframes. When disaster strikes and connectivity drops, Nexus operates honestly: caching outputs in local IndexedDB, clearly labeling offline results, and queuing urgent field requests to automatically drain upon reconnection. By bridging enterprise AWS foundation models with real-world edge usability, Nexus Impact AI turns high-stakes field complexity into actionable, life-saving operational blueprints.
 
 ---
 
@@ -16,10 +16,10 @@ Nexus Impact AI is an offline-first, mobile workspace providing seven domain-spe
 
 - **Primary Track — Alexa+ Track**:  
   Self-hosted Streamable HTTP MCP server implementing the official 2025-11-25 specification over `/mcp`. Features an interactive Alexa+ voice simulator with browser Web Speech recognition, SpeechSynthesis audio delivery, live JSON-RPC 2.0 call logging with millisecond latencies, and automated conformance tests.
-- **Mini Challenge 1 — AWS Builder Mini Challenge**:  
-  Server-side Amazon Bedrock Converse API integration with foundation models (Anthropic Claude, Amazon Nova Pro), principle of least privilege IAM policies, zero client-side credential exposure, graceful error classification, and Amazon S3 evidence vaulting.
-- **Mini Challenge 2 — Open Source Mini Challenge**:  
+- **Mini Challenge — Open Source Mini Challenge**:  
   Open source under the permissive MIT License, featuring comprehensive Mermaid architecture diagrams, a 5-command setup guide, developer friction logs, product feedback, and reproducible unit/conformance test suites.
+- **Track Status Notice — AWS Builder Mini Challenge**:  
+  *Not entering the AWS Builder Mini Challenge.* The Amazon Bedrock integration is implemented in code (`src/bedrockService.ts`), but has not been run live against a paid AWS account. The live demo runs in simulated mode using the bundled humanitarian knowledge pack without AWS keys.
 
 ---
 
@@ -36,9 +36,9 @@ Nexus Impact AI is an offline-first, mobile workspace providing seven domain-spe
 * **Voiceover:** *"Nexus implements the official Model Context Protocol 2025-11-25 spec over Streamable HTTP. Every agent is registered as a native MCP tool, returning concise voice answers for Alexa+ and full operational tables for the screen."*
 * **Visual:** Click **"Run Conformance Test"**. Show green badges verifying SSE handshakes, tools discovery, and JSON-RPC dispatch.
 
-### **[0:45 - 1:20] AWS Builder: Bedrock Converse API & S3 Vault**
-* **Visual:** Switch to the **AWS Cloud** tab. Show the active model selector (Anthropic Claude, `Amazon Nova Pro`, `Nova Micro`).
-* **Voiceover:** *"All inferences execute server-side through the Amazon Bedrock Converse API. Zero AWS credentials ever touch the browser. In our AWS tab, reviewers can inspect live CloudWatch latency metrics, least-privilege IAM policies, and encrypted Amazon S3 evidence vaulting."*
+### **[0:45 - 1:20] Architecture: Bedrock Code Integration & Technical Design**
+* **Visual:** Switch to the **Architecture** tab. Show the technical architecture notice: *"Bedrock integration is implemented in code but has not been run live."*
+* **Voiceover:** *"Our backend architecture implements server-side Amazon Bedrock Converse API routing with least-privilege IAM policies and zero client-side credential exposure. In the live demo, requests run safely in simulated mode using our bundled knowledge pack without requiring AWS keys."*
 * **Visual:** Switch to **Workspace**, click **"Archive to Amazon S3"** on the USAID Grant Proposal. Show the SHA-256 tamper-evident checksum and KMS encryption metadata.
 
 ### **[1:20 - 1:55] Frontline Domain Rigor: Sphere Standards & Logframes**
@@ -73,3 +73,4 @@ Nexus Impact AI is an offline-first, mobile workspace providing seven domain-spe
 1. **Live AWS Account Billing**: Live Bedrock token usage and S3 bucket provisioning require your specific AWS Account ID and paid credentials, which are not hardcoded or stored in the repository.
 2. **Physical Satellite / 2G Latency on Real Hardware**: Offline caching and low-bandwidth modes have been verified via software network simulation, IndexedDB unit tests, and DevTools 2G throttling; testing on physical satellite terminals (e.g. BGAN, Starlink Mini) in refugee camp conditions must be validated in the field.
 3. **Ge'ez & African Script On-Device Neural Weights**: While 11 languages are fully supported in UI and output, low-end on-device quantized models (WebLLM/Transformers.js) have limited Ge'ez and agglutinative vocabulary coverage (honestly badged with an in-app warning banner); cloud Bedrock models provide full fidelity.
+4. **Live Execution of Amazon Bedrock**: The Amazon Bedrock integration is implemented in code (`src/bedrockService.ts` via `@aws-sdk/client-bedrock-runtime`), but has not been run live against a live paid AWS account; testing in this environment runs in simulated mode without AWS keys.

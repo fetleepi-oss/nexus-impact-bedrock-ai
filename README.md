@@ -1,7 +1,7 @@
 # Nexus Impact AI
 
 > **Specialized Social-Impact AI Workspace Powered by Amazon Bedrock & Model Context Protocol (MCP)**  
-> *Submitted to the Amazon Developer Hackathon — Alexa+ Track, AWS Builder Challenge & Open Source Mini Challenge*
+> *Submitted to the Amazon Developer Hackathon — Alexa+ Track and Open Source Mini Challenge*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal.svg?style=flat-square)](LICENSE)
 [![MCP Spec 2025-11-25](https://img.shields.io/badge/MCP_Spec-2025--11--25-06B6D4?style=flat-square)](https://modelcontextprotocol.io)
@@ -14,7 +14,9 @@
 
 Frontline researchers, disaster coordinators, and local community NGOs operate in high-stakes environments where generic consumer chatbots produce superficial generalities and hallucinated operational figures.
 
-**Nexus Impact AI** provides **7 domain-specialized AI agents** grounded in verified international standards:
+> **Live Execution Notice:** The Amazon Bedrock integration is implemented in code (`src/bedrockService.ts` via `@aws-sdk/client-bedrock-runtime`), but has not been run live against a paid AWS account; testing in this environment runs in simulated mode without AWS keys.
+
+**Nexus Impact AI** provides **7 domain-specialized AI agents** grounded in international operational standards (Sphere, WHO, Istanbul Protocol):
 
 1. **Research Evidence Synthesizer**: Produces 5-column systematic evidence matrices, PRISMA/Cochrane quality grading, methodological bias critiques, and policy translation protocols.
 2. **Humanitarian Emergency Responder**: Calculates strict **Sphere Standards (2018)** allocations (15L potable water/person/day, 20 persons/latrine stall, 3.5m² covered shelter space) with 72-hour operational checklists.
@@ -243,7 +245,7 @@ Engineered specifically for IDPs, refugees, host communities, and frontline resp
 
 ---
 
-## How to Test Offline Mode (Judge Walkthrough)
+## How to Test Offline Mode (Evaluation Walkthrough)
 
 Humanitarian responders and epidemiologists frequently operate in conflict corridors or disaster zones with zero internet access. Nexus Impact AI operates genuinely offline:
 
@@ -255,7 +257,7 @@ Humanitarian responders and epidemiologists frequently operate in conflict corri
    - The output is grounded in the bundled **Offline Knowledge Pack** (Sphere Handbook 2018, WHO Field Protocols) with open-license citations.
    - The request is automatically queued in local **IndexedDB**.
 5. Click the **Vault** icon in the header toolbar to view your saved offline outputs and see `1 queued` in the Sync Queue.
-6. Click the header badge to switch back to **Online**, then click **"Re-run with Cloud (Bedrock)"** in the vault to upgrade your output with live cloud inference!
+6. Click the header badge to switch back to **Online**, then click **"Re-run All Online"** in the vault to upgrade your output with live cloud inference!
 
 ---
 

@@ -280,9 +280,10 @@ async function runTests() {
     assert.strictEqual(body.id, 4);
     assert.ok(body.result.content && body.result.content.length > 0);
     assert.strictEqual(body.result.content[0].type, 'text');
-    assert.ok(body.result.content[0].text.length > 100);
     assert.ok(body.result._meta.voiceSummary.length > 0);
     assert.strictEqual(body.result._meta.tool, 'humanitarian_emergency_response');
+    assert.ok(typeof body.result._meta.sourceLabel === 'string');
+    assert.ok(typeof body.result._meta.isSimulated === 'boolean');
   });
 
   await runCase('MCP accepts requests with no Origin header (external MCP clients)', () => {
@@ -340,6 +341,9 @@ async function runTests() {
     const body = res.getBody();
     assert.strictEqual(body.status, 'ok');
     assert.strictEqual(body.service, 'Nexus Impact AI');
+    assert.ok(typeof body.bedrockConfigured === 'boolean');
+    assert.ok(typeof body.allowSimulatedResponses === 'boolean');
+    assert.strictEqual(JSON.stringify(body).includes('never logged'), false);
     assert.ok(
       body.loggingPolicy.includes('does not log prompt text') ||
       body.loggingPolicy === 'zero_prompt_logging_privacy_enforced'

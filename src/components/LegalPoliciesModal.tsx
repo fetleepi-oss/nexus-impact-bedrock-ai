@@ -285,14 +285,14 @@ export const LegalPoliciesModal: React.FC<LegalPoliciesModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-[#1C2541] bg-[#0B132B] flex items-center justify-between">
+        <div className="px-5 py-3 border-t border-[#1C2541] bg-[#0B132B] flex flex-col sm:flex-row items-center justify-between gap-2">
           <span className="text-[11px] text-slate-400">
-            Nexus Impact AI &middot; Humanitarian Open Technology
+            Nexus Impact AI &middot; Humanitarian Open Technology &middot; <span className="italic text-teal-300">All translations are machine-assisted and under community review.</span>
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold transition-colors cursor-pointer"
+            className="px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold transition-colors cursor-pointer shrink-0"
           >
             Understood
           </button>

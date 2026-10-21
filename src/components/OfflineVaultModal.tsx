@@ -247,7 +247,7 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                 ) : (
                   <>
                     <Cloud className="w-3.5 h-3.5" />
-                    <span>Re-run All with Cloud (Bedrock)</span>
+                    <span>Re-run All Online</span>
                   </>
                 )}
               </button>
@@ -326,7 +326,7 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                 ) : (
                   cachedOutputs.map((item) => {
                     const isSelected = selectedOutput?.id === item.id;
-                    const isCloud = item.modelCategory === 'cloud';
+                    const isSimulated = Boolean(item.isSimulated || item.model?.includes('SIMULATED') || item.output?.includes('[SIMULATED'));
                     return (
                       <div
                         key={item.id}
@@ -338,13 +338,19 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                         }`}
                       >
                         <div className="flex items-start justify-between gap-1.5">
-                          <span className={`text-[9px] font-bold font-mono uppercase px-1.5 py-0.2 rounded border ${
-                            isCloud
-                              ? 'bg-teal-500/20 border-teal-500/40 text-teal-300'
-                              : 'bg-amber-500/20 border-amber-500/40 text-amber-200'
-                          }`}>
-                            {isCloud ? 'Cloud' : 'On-Device'}
-                          </span>
+                          {isSimulated ? (
+                            <span className="text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded border bg-amber-500/20 border-amber-500/50 text-amber-300">
+                              SIMULATED
+                            </span>
+                          ) : item.usedRealBedrock ? (
+                            <span className="text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded border bg-teal-500/20 border-teal-500/40 text-teal-300">
+                              Bedrock
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded border bg-blue-500/20 border-blue-500/40 text-blue-300">
+                              On-Device
+                            </span>
+                          )}
                           <span className="text-[9px] text-slate-400 font-mono">
                             {new Date(item.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
@@ -379,9 +385,19 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                   <div className="flex flex-wrap items-center justify-between gap-2 p-3.5 rounded-2xl bg-[#0B132B] border border-[#2E3C62]">
                     <div className="space-y-0.5">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-teal-500/20 border border-teal-500/40 text-teal-200">
-                          {selectedOutput.model}
-                        </span>
+                        {Boolean(selectedOutput.isSimulated || selectedOutput.model?.includes('SIMULATED') || selectedOutput.output?.includes('[SIMULATED')) ? (
+                          <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300">
+                            SIMULATED, not from Amazon Bedrock
+                          </span>
+                        ) : selectedOutput.usedRealBedrock ? (
+                          <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-teal-500/20 border border-teal-500/40 text-teal-200">
+                            Amazon Bedrock ({selectedOutput.model})
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-200">
+                            {selectedOutput.model || 'On-device'}
+                          </span>
+                        )}
                       </div>
                       <h3 className="text-sm font-bold text-white pt-1">
                         {selectedOutput.title}
@@ -447,12 +463,12 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                 {isDraining ? (
                   <>
                     <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    <span>Re-running with Bedrock...</span>
+                    <span>Re-running Online...</span>
                   </>
                 ) : (
                   <>
                     <Cloud className="w-3.5 h-3.5" />
-                    <span>Re-run All with Cloud (Bedrock)</span>
+                    <span>Re-run All Online</span>
                   </>
                 )}
               </button>
@@ -463,7 +479,7 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                 <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-400" />
                 <h3 className="text-sm font-bold text-slate-200">Sync Queue is Empty</h3>
                 <p className="text-xs text-slate-300 max-w-md mx-auto">
-                  When you generate answers while offline, requests are automatically saved here so you can re-run them with Amazon Bedrock when connectivity is restored.
+                  When you generate answers while offline, requests are automatically saved here so you can re-run them when online connectivity is restored.
                 </p>
               </div>
             ) : (

@@ -14,7 +14,6 @@ interface BottomNavProps {
   onChangeTab: (tab: NavTab) => void;
   knowledgeCount: number;
   hasActiveAgent: boolean;
-  isPro: boolean;
   queuedRequestsCount?: number;
 }
 
@@ -126,11 +125,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           <span className="text-[9px] tracking-tight truncate max-w-full">{t('evalTab')}</span>
         </button>
 
-        {/* Tab 6: AWS Cloud & Personas */}
+        {/* Tab 6: Technical Architecture */}
         <button
           type="button"
           onClick={() => onChangeTab('aws')}
-          aria-label="AWS Architecture Tab"
+          aria-label="Architecture Tab"
           className={`flex flex-col items-center justify-center gap-1 transition-all min-h-[48px] select-none cursor-pointer focus-visible:ring-2 focus-visible:ring-teal-400 ${
             activeTab === 'aws'
               ? 'text-teal-300 font-bold'
@@ -138,9 +137,9 @@ export const BottomNav: React.FC<BottomNavProps> = ({
           }`}
         >
           <div className="relative">
-            <Cloud className={`w-4.5 h-4.5 ${activeTab === 'aws' ? 'stroke-[2.5]' : 'stroke-2'}`} aria-hidden="true" />
+            <Layers className={`w-4.5 h-4.5 ${activeTab === 'aws' ? 'stroke-[2.5]' : 'stroke-2'}`} aria-hidden="true" />
           </div>
-          <span className="text-[9px] tracking-tight truncate max-w-full">AWS</span>
+          <span className="text-[9px] tracking-tight truncate max-w-full">Arch</span>
         </button>
       </div>
     </nav>

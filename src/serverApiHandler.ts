@@ -284,7 +284,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
         region: process.env.AWS_REGION || 'us-east-1',
         storageClass: 'INTELLIGENT_TIERING',
         serverSideEncryption: 'aws:kms',
-        sha256: 'sha256-verified-tamper-evident',
+        sha256: 'sha256-tamper-evident-hash',
         sizeBytes: JSON.stringify(body).length,
         archivedAt: new Date().toISOString()
       }));
@@ -358,6 +358,9 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
           durationMs: result.durationMs,
           usedRealBedrock: result.usedRealBedrock,
           isSimulated: result.isSimulated,
+          sourceLabel: result.usedRealBedrock
+            ? `Amazon Bedrock (${result.model || 'model'})`
+            : (result.isSimulated ? 'SIMULATED' : 'Offline knowledge pack'),
           guardrailsApplied: Boolean(process.env.BEDROCK_GUARDRAIL_ID),
           model: result.model,
           region: result.region,
@@ -431,7 +434,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
           status: 'success',
           toolName,
           output,
-          voiceSummary,
+          voiceSummary: bedrockResult.voiceSummary,
           usedRealBedrock: bedrockResult.usedRealBedrock,
           isSimulated: Boolean(bedrockResult.isSimulated),
           simulated: Boolean(bedrockResult.isSimulated)
@@ -622,6 +625,10 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
             }));
           }
 
+          const sourceLabel = bedrockResult.usedRealBedrock
+            ? `Amazon Bedrock (${bedrockResult.model || 'model'})`
+            : (bedrockResult.isSimulated ? 'SIMULATED' : 'Offline knowledge pack');
+
           return res.end(JSON.stringify({
             jsonrpc: '2.0',
             result: {
@@ -632,6 +639,8 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
                 usedRealBedrock: bedrockResult.usedRealBedrock,
                 isSimulated: Boolean(bedrockResult.isSimulated),
                 simulated: Boolean(bedrockResult.isSimulated),
+                sourceLabel,
+                model: bedrockResult.model,
                 timestamp: new Date().toISOString()
               }
             },

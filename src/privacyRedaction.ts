@@ -143,6 +143,18 @@ export async function executePanicWipe(redirectUrl: string = 'https://en.wikiped
       localStorage.clear();
       sessionStorage.clear();
     }
+
+    // 4. Unregister all service workers
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      try {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        for (const reg of registrations) {
+          await reg.unregister();
+        }
+      } catch {
+        // Fallback
+      }
+    }
   } catch (err) {
     console.error('Error during panic wipe:', err);
   } finally {

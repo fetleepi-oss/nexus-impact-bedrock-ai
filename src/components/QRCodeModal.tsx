@@ -12,6 +12,7 @@ interface QRCodeModalProps {
   title: string;
   content: string;
   summary: string;
+  sourceLabel?: string;
 }
 
 /**
@@ -75,14 +76,18 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
   onClose,
   title,
   content,
-  summary
+  summary,
+  sourceLabel
 }) => {
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
+  const isSimulated = Boolean(sourceLabel === 'SIMULATED' || content.includes('[SIMULATED') || summary.includes('SIMULATED'));
+  const effectiveSource = sourceLabel || (isSimulated ? 'SIMULATED' : 'On-device');
+
   // Use compact summary text or export payload
-  const qrData = `[NEXUS IMPACT AI] ${title}\n${summary}\nVerified: ${new Date().toISOString().slice(0, 10)}`;
+  const qrData = `[NEXUS IMPACT AI] ${title}\nSource: ${effectiveSource}\n${summary}\nDate: ${new Date().toISOString().slice(0, 10)}`;
   const matrix = generateDeterministicMatrix(qrData, 29);
   const cellSize = 8;
   const padding = 16;
@@ -166,7 +171,16 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({
         {/* Content details */}
         <div className="px-4 py-3 bg-[#0B132B] border-t border-[#1C2541] space-y-2">
           <div className="text-xs">
-            <span className="font-bold text-white">{title}</span>
+            <div className="flex items-center justify-between gap-1 mb-1">
+              <span className="font-bold text-white">{title}</span>
+              <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                isSimulated
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50'
+                  : 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+              }`}>
+                {effectiveSource}
+              </span>
+            </div>
             <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">
               {summary}
             </p>

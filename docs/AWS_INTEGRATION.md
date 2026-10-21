@@ -1,6 +1,6 @@
 # AWS Integration Architecture & Design Specification
 
-> **Hackathon Submission:** Amazon Developer Hackathon — AWS Builder Mini Challenge & Alexa+ Track  
+> **Hackathon Submission:** Amazon Developer Hackathon — Alexa+ Track & Open Source Mini Challenge (Architecture Specification)  
 > **Project:** Nexus Impact AI  
 > **Date:** October 2026  
 
@@ -9,6 +9,8 @@
 ## 1. Executive Summary
 
 Nexus Impact AI utilizes **Amazon Web Services (AWS)** foundation technologies to power specialized social-impact agents for frontline disaster coordinators, public health epidemiologists, and human rights monitors.
+
+> **Live Execution Notice:** Bedrock integration is implemented in code (`src/bedrockService.ts` using `@aws-sdk/client-bedrock-runtime` and `ConverseCommand`), but has not been run live. Nexus Impact AI is **not entering the AWS Builder Mini Challenge**; testing in this environment runs in simulated mode with no AWS keys.
 
 Rather than treating AI as a conversational novelty, our AWS architecture enforces:
 - **Server-Side Exclusivity**: Zero AWS credentials, secrets, or internal region configurations ever reach client-side code.
@@ -107,7 +109,7 @@ All model inferences flow strictly through the server-side API handler and the S
 | `ThrottlingException` | TPS or token quota limit reached in region | Backoff retry with jitter. Advisory: *"Amazon Bedrock rate limit exceeded. Server backing off; retry shortly or reduce token budget."* |
 | `AccessDeniedException` | IAM role missing `bedrock:InvokeModel` or model access not requested | Fallback to high-fidelity structured template. Advisory: *"AWS IAM permission denied. Enable model in AWS Console -> Amazon Bedrock -> Model access."* |
 | `ResourceNotFoundException` | Model ID not supported in current AWS region | Advisory: *"Bedrock model not provisioned in this region. Use cross-region inference profile (e.g. `us.anthropic...`)."* |
-| Missing Credentials | App deployed in demo environment without AWS keys | Automatic seamless fallback to **Demo Mode**, ensuring judges can evaluate complete workflows without blockers. |
+| Missing Credentials | App deployed in test environment without AWS keys | Fallback to simulation mode when `ALLOW_SIMULATED_RESPONSES=true`, or actionable setup guidance when `false`. |
 
 ---
 
@@ -118,4 +120,4 @@ Nexus Impact AI explicitly avoids deprecated model identifiers:
 - `amazon.nova-pro-v1:0` (Amazon Nova Pro multimodal reasoning)
 - `amazon.nova-micro-v1:0` (Amazon Nova Micro ultra-low latency)
 
-The active model is dynamically queryable via `GET /api/aws/status`, displaying verified region and status in both the application header and the AWS Architecture inspector tab.
+The active model is dynamically queryable via `GET /api/aws/status`, displaying configured region and status in both the application header and the AWS Architecture inspector tab.

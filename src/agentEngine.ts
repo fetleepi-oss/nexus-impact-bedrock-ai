@@ -128,7 +128,7 @@ While the body of literature is expanding, several critical methodological limit
 
 ## 3. Emergency Nutrition & Food Security
 ### Operational Priorities
-* Screen 100% of children aged 6–59 months and pregnant/lactating women (PLW) for severe acute malnutrition (SAM) and moderate acute malnutrition (MAM).
+* Screen all children aged 6–59 months and pregnant/lactating women (PLW) for severe acute malnutrition (SAM) and moderate acute malnutrition (MAM).
 * Ensure immediate baseline caloric adequacy and prevent breastmilk substitute code violations.
 
 ### Sphere Standard Quantities

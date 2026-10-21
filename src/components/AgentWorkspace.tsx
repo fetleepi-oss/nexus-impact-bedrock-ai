@@ -107,11 +107,11 @@ import { QRCodeModal } from './QRCodeModal';
 
 interface AgentWorkspaceProps {
   agent: AgentConfig;
-  isPro: boolean;
+  isPro?: boolean;
   initialPrompt?: string;
   autoExecuteTrigger?: number;
   onBack: () => void;
-  onOpenPaywall: () => void;
+  onOpenPaywall?: () => void;
   onSavedToKnowledgeBase?: () => void;
   attachedKbItem?: KnowledgeItem | null;
   onDetachKbItem?: () => void;
@@ -353,7 +353,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     return () => clearInterval(interval);
   }, [isGenerating]);
 
-  // Immediate 1-Click execution hook for first-time users and judges
+  // Immediate 1-Click execution hook for first-time users
   useEffect(() => {
     if (autoExecuteTrigger && autoExecuteTrigger > 0) {
       const targetPrompt = initialPrompt || agent.sampleScenario?.fullPrompt || prompt;
@@ -801,8 +801,23 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   const handleExportFullMarkdown = () => {
     if (!output) return;
     const cleanName = `${agent.id}_report_${Date.now()}`;
-    const content = isGrantProposalAgent ? getCompiledProposalMarkdown() : output;
-    exportMarkdownFile(`${cleanName}.md`, content);
+    const rawContent = isGrantProposalAgent ? getCompiledProposalMarkdown() : output;
+    const sourceLabel = generationMeta?.isSimulated || output?.includes('[SIMULATED')
+      ? 'SIMULATED'
+      : generationMeta?.usedRealBedrock
+        ? `Amazon Bedrock (${generationMeta.model || selectedModel || 'configured model'})`
+        : generationMeta?.isOfflineCached
+          ? 'Offline knowledge pack'
+          : generationMeta?.isOfflineOnDevice
+            ? 'On-device'
+            : 'Offline knowledge pack';
+
+    let exportContent = `# ${agent.name} Output\n\n`;
+    exportContent += `**Source**: ${sourceLabel}\n`;
+    exportContent += `**Date**: ${new Date().toISOString()}\n\n---\n\n`;
+    exportContent += rawContent;
+    exportContent += `\n\n---\n*Generated via Nexus Impact AI - Field Protocol*\n`;
+    exportMarkdownFile(`${cleanName}.md`, exportContent);
   };
 
   // Amazon S3 Document Archive Handler
@@ -831,7 +846,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           s3Uri: `s3://nexus-impact-evidence-vault/${agent.id}/${Date.now()}.md`,
           region: 'us-east-1',
           storageClass: 'INTELLIGENT_TIERING',
-          sha256: 'sha256-verified-tamper-evident',
+          sha256: 'sha256-tamper-evident-hash',
           sizeBytes: compiledDoc.length
         });
       }
@@ -840,7 +855,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         s3Uri: `s3://nexus-impact-evidence-vault/${agent.id}/${Date.now()}.md`,
         region: 'us-east-1',
         storageClass: 'INTELLIGENT_TIERING',
-        sha256: 'sha256-verified-tamper-evident',
+        sha256: 'sha256-tamper-evident-hash',
         sizeBytes: output.length
       });
     } finally {
@@ -856,7 +871,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     // Apply sample values strictly to their own form inputs
     applyPromptToAgentFields(scenario.fullPrompt);
 
-    // Trigger generation with guaranteed < 30 second result
+    // Trigger generation with target < 30 second result
     executeWithPrompt(scenario.fullPrompt);
   };
 
@@ -925,19 +940,6 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
   };
 
   const executeWithPrompt = async (effectiveUserPrompt: string) => {
-    // Check tier entitlement (always allowed when Demo Mode is active)
-    const check = canGenerate(agent.tier, agent.id);
-    if (!check.allowed && !isDemo) {
-      if (check.reason === 'pro_required') {
-        onOpenPaywall();
-        return;
-      }
-      if (check.reason === 'daily_limit_reached') {
-        setErrorMsg('Daily free limit reached (3/3 generations used today). Demo mode or Nexus Pro provides unlimited generations.');
-        onOpenPaywall();
-        return;
-      }
-    }
 
     // Safety Check
     const safetyCheck = validateHumanInTheLoopSafety(effectiveUserPrompt, agent.id, agent.name, selectedModel);
@@ -1080,10 +1082,6 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         isOfflineCached: false,
         isSimulated: isSimulatedResponse
       });
-
-      if (!isPro && !isDemo && agent.id !== 'knowledge_base') {
-        incrementDailyUsage();
-      }
     } catch (err: any) {
       console.error('Execution error:', err);
       setErrorMsg(err?.message || 'Error executing agent. You can run the 1-click sample scenario instead.');
@@ -1244,31 +1242,19 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         </button>
 
         <div className="flex items-center gap-1.5">
-          {isDemo ? (
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-teal-500/20 text-teal-200 border border-teal-500/40">
-              All agents unlocked
-            </span>
-          ) : (
-            <span
-              className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${
-                agent.tier === 'pro'
-                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-200'
-                  : 'bg-teal-500/15 border-teal-500/30 text-teal-200'
-              }`}
-            >
-              {agent.tier === 'pro' ? 'PRO AGENT' : 'FREE TIER'}
-            </span>
-          )}
+          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold border bg-teal-500/15 border-teal-500/30 text-teal-200">
+            {agent.category}
+          </span>
         </div>
       </div>
 
-      {/* 1-CLICK SAMPLE SCENARIO BANNER (Top Reassurance for Judges <30s) */}
+      {/* 1-CLICK SAMPLE SCENARIO BANNER */}
       {agent.sampleScenario && (
         <div className="rounded-2xl bg-gradient-to-r from-teal-500/20 via-[#1C2541] to-amber-500/10 border-2 border-teal-400/40 p-3.5 shadow-md flex flex-col gap-2 no-print">
           <div className="flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-teal-400 text-slate-950 font-black text-[10px] uppercase font-mono">
               <Zap className="w-3 h-3 fill-slate-950" aria-hidden="true" />
-              <span>Judge Quick-Test (&lt;30s)</span>
+              <span>Sample Scenario (&lt;30s)</span>
             </span>
             <span className="text-[11px] text-teal-200 font-mono font-bold">
               Instant Results
@@ -1393,7 +1379,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
               <span>Proposal Inputs</span>
             </h3>
             <span className="text-[10px] font-mono text-teal-300 font-bold">
-              {isDemo ? 'All agents unlocked' : 'PRO AGENT'}
+              Free &amp; Open Source
             </span>
           </div>
 
@@ -1703,7 +1689,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
               <span>Human Rights Legal Documentation</span>
             </h3>
             <span className="text-[10px] font-mono text-teal-300 font-bold">
-              {isDemo ? 'All agents unlocked' : 'PRO AGENT'}
+              Free &amp; Open Source
             </span>
           </div>
 
@@ -1754,7 +1740,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
               <span>Maternal Survival &amp; GBV Care Protocol</span>
             </h3>
             <span className="text-[10px] font-mono text-teal-300 font-bold">
-              {isDemo ? 'All agents unlocked' : 'PRO AGENT'}
+              Free &amp; Open Source
             </span>
           </div>
 
@@ -1842,7 +1828,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-white">
-              {generationStage || 'Synthesizing verified field response...'}
+              {generationStage || 'Synthesizing field response...'}
             </h3>
             <p className="text-xs text-teal-300 font-mono mt-1">
               Elapsed: {generationSeconds}s &middot; Target: &lt; 30 seconds
@@ -1926,6 +1912,24 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             </div>
           )}
 
+          {/* Print-Only Header showing Source Label */}
+          <div className="hidden print:block p-3 border-b-2 border-black mb-4 text-black font-sans">
+            <h1 className="text-base font-black">{agent.name} Output</h1>
+            <p className="text-xs mt-1">
+              <strong>Source:</strong> {
+                generationMeta?.isSimulated || output?.includes('[SIMULATED')
+                  ? 'SIMULATED, not from Amazon Bedrock'
+                  : generationMeta?.usedRealBedrock
+                    ? `Amazon Bedrock (${generationMeta.model || selectedModel || 'configured model'})`
+                    : generationMeta?.isOfflineCached
+                      ? 'Offline knowledge pack'
+                      : generationMeta?.isOfflineOnDevice
+                        ? 'On-device'
+                        : 'Offline knowledge pack'
+              } &middot; <strong>Date:</strong> {new Date().toLocaleDateString()}
+            </p>
+          </div>
+
           {/* Header Action Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 rounded-2xl bg-[#1C2541]/95 border border-[#2E3C62] no-print">
             <div className="flex items-center gap-2">
@@ -1954,8 +1958,8 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
                       <span>On-device</span>
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[10px] font-mono font-bold">
-                      <span>Amazon Bedrock ({generationMeta?.model || 'configured model'})</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-mono font-bold">
+                      <span>Offline knowledge pack</span>
                     </span>
                   )}
                 </div>
@@ -2119,7 +2123,26 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         onClose={() => setIsQrModalOpen(false)}
         title={agent.name}
         content={output || ''}
-        summary={`${generationMeta?.model || 'Nexus Impact AI'} (${generationMeta?.modelCategory === 'cloud' ? 'Cloud Bedrock' : 'On-Device'})`}
+        sourceLabel={
+          generationMeta?.isSimulated || output?.includes('[SIMULATED')
+            ? 'SIMULATED'
+            : generationMeta?.usedRealBedrock
+              ? `Amazon Bedrock (${generationMeta.model || selectedModel || 'configured model'})`
+              : generationMeta?.isOfflineCached
+                ? 'Offline knowledge pack'
+                : generationMeta?.isOfflineOnDevice
+                  ? 'On-device'
+                  : 'Offline knowledge pack'
+        }
+        summary={`${agent.name} (${
+          generationMeta?.isSimulated || output?.includes('[SIMULATED')
+            ? 'SIMULATED'
+            : generationMeta?.usedRealBedrock
+              ? `Amazon Bedrock (${generationMeta.model || selectedModel})`
+              : generationMeta?.isOfflineCached
+                ? 'Offline knowledge pack'
+                : 'On-Device'
+        })`}
       />
     </div>
   );

@@ -272,7 +272,7 @@ export const AlexaSimulatorTab: React.FC = () => {
     setMcpLogs((prev) => [logEntry, ...prev]);
     setSelectedLog(logEntry);
 
-    const voiceSummary = responseData.result._meta?.voiceSummary || 'Task completed with verified field indicators.';
+    const voiceSummary = responseData.result._meta?.voiceSummary || 'Task completed with operational field indicators.';
     const textContent = responseData.result.content?.[0]?.text || '';
 
     setSpokenResponse(voiceSummary);
@@ -485,7 +485,7 @@ export const AlexaSimulatorTab: React.FC = () => {
           </button>
         </div>
 
-        {/* 1-Click Alexa Judge Starter Presets */}
+        {/* 1-Click Alexa Starter Presets */}
         <div className="space-y-1.5 pt-2 border-t border-[#2E3C62]">
           <p className="text-[10px] font-bold text-slate-300 uppercase tracking-wider font-mono">
             1-Click Alexa+ Voice Presets (&lt;30s Results):
@@ -528,9 +528,24 @@ export const AlexaSimulatorTab: React.FC = () => {
                 <Volume2 className={`w-4 h-4 ${isSpeaking ? 'animate-bounce text-cyan-300' : ''}`} />
               </span>
               <div>
-                <h2 className="text-xs font-bold text-cyan-200 uppercase tracking-wider">
-                  Alexa+ Spoken Response
-                </h2>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h2 className="text-xs font-bold text-cyan-200 uppercase tracking-wider">
+                    Alexa+ Spoken Response
+                  </h2>
+                  {Boolean(fullDetailResponse?.includes('[SIMULATED') || spokenResponse?.includes('SIMULATED') || selectedLog?.responsePayload?.result?._meta?.isSimulated) ? (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/50">
+                      SIMULATED
+                    </span>
+                  ) : selectedLog?.responsePayload?.result?._meta?.usedRealBedrock ? (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40">
+                      Amazon Bedrock
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">
+                      Offline pack
+                    </span>
+                  )}
+                </div>
                 <span className="text-[10px] text-slate-300 font-mono">
                   MCP Tool: <code className="text-teal-300 font-bold">{activeToolUsed || 'humanitarian_emergency_response'}</code>
                 </span>

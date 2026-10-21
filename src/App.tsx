@@ -6,32 +6,23 @@
 import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
-  Crown,
   CheckCircle2,
   Info,
-  Cloud,
+  Layers,
   Calculator,
   Radio,
   Users,
   Zap,
-  Play,
   AlertTriangle
 } from 'lucide-react';
 import { AGENTS, AgentConfig, getAgentById } from './agents';
-import {
-  isProEntitled,
-  isDemoModeActive,
-  getRemainingFreeGenerations,
-  FREE_DAILY_LIMIT
-} from './limits';
 import { getKnowledgeItems, KnowledgeItem } from './knowledgeBase';
-import { getQueuedRequests } from './offlineStorage';
+import { getQueuedRequests, drainOfflineQueue } from './offlineStorage';
 import { Header } from './components/Header';
 import { BottomNav, NavTab } from './components/BottomNav';
 import { AgentCard } from './components/AgentCard';
 import { AgentWorkspace } from './components/AgentWorkspace';
 import { KnowledgeBaseTab } from './components/KnowledgeBaseTab';
-import { PaywallModal } from './components/PaywallModal';
 import { AwsArchitectureTab } from './components/AwsArchitectureTab';
 import { SphereToolsTab } from './components/SphereToolsTab';
 import { AlexaSimulatorTab } from './components/AlexaSimulatorTab';
@@ -53,17 +44,14 @@ export default function App() {
   const [activeWorkspacePrompt, setActiveWorkspacePrompt] = useState<string>('');
   const [attachedKbItem, setAttachedKbItem] = useState<KnowledgeItem | null>(null);
 
-  // Simulated Mode banner state (read from /api/health)
+  // Simulated Mode and Bedrock status (read from /api/health)
   const [isSimulatedMode, setIsSimulatedMode] = useState<boolean>(false);
+  const [bedrockConfigured, setBedrockConfigured] = useState<boolean>(false);
 
   // AWS Bedrock Model Selection
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [configuredModelId, setConfiguredModelId] = useState<string>('');
   const [configuredRegion, setConfiguredRegion] = useState<string>('us-east-1');
-
-  // Tier & Usage state
-  const [isPro, setIsPro] = useState<boolean>(true); // Default true under UNLOCK_ALL_AGENTS
-  const [remainingGenerations, setRemainingGenerations] = useState<number>(FREE_DAILY_LIMIT);
 
   // Knowledge Base state
   const [knowledgeItems, setKnowledgeItems] = useState<KnowledgeItem[]>([]);
@@ -73,8 +61,6 @@ export default function App() {
   const [autoExecuteTrigger, setAutoExecuteTrigger] = useState<number>(0);
 
   // Modals state
-  const [isPaywallOpen, setIsPaywallOpen] = useState<boolean>(false);
-  const [pendingProAgent, setPendingProAgent] = useState<AgentConfig | null>(null);
   const [isWhoThisHelpsOpen, setIsWhoThisHelpsOpen] = useState<boolean>(false);
   const [isOnDeviceModalOpen, setIsOnDeviceModalOpen] = useState<boolean>(false);
   const [isKnowledgePackModalOpen, setIsKnowledgePackModalOpen] = useState<boolean>(false);
@@ -84,20 +70,24 @@ export default function App() {
   const [isLegalModalOpen, setIsLegalModalOpen] = useState<boolean>(false);
   const [isSelfTestOpen, setIsSelfTestOpen] = useState<boolean>(false);
 
-  // Filter for agents home tab
-  const [agentFilter, setAgentFilter] = useState<'all' | 'free' | 'pro'>('all');
+  // Sync status on reconnect
+  const [syncNotification, setSyncNotification] = useState<{ message: string; type: 'syncing' | 'synced' } | null>(null);
+
+  // Filter for agents home tab by category
+  const [agentCategoryFilter, setAgentCategoryFilter] = useState<string>('all');
 
   useEffect(() => {
-    setIsPro(isProEntitled());
-    setRemainingGenerations(getRemainingFreeGenerations());
     setKnowledgeItems(getKnowledgeItems());
 
-    // Fetch server health to get live configured Bedrock model ID and region
+    // Fetch server health to get live configured Bedrock model ID, status, and region
     fetch('/api/health')
       .then((r) => r.json())
       .then((data) => {
         if (typeof data.allowSimulatedResponses === 'boolean') {
           setIsSimulatedMode(data.allowSimulatedResponses);
+        }
+        if (typeof data.bedrockConfigured === 'boolean') {
+          setBedrockConfigured(data.bedrockConfigured);
         }
         if (data.bedrockModelId) {
           setConfiguredModelId(data.bedrockModelId);
@@ -122,12 +112,6 @@ export default function App() {
     };
     updateQueuedCount();
 
-    const handleLimitsUpdated = () => {
-      setRemainingGenerations(getRemainingFreeGenerations());
-    };
-    const handleEntitlementUpdated = () => {
-      setIsPro(isProEntitled());
-    };
     const handleKbUpdated = (e: any) => {
       if (e.detail) {
         setKnowledgeItems(e.detail);
@@ -139,27 +123,41 @@ export default function App() {
       updateQueuedCount();
     };
 
-    window.addEventListener('nexus_limits_updated', handleLimitsUpdated);
-    window.addEventListener('nexus_entitlement_updated', handleEntitlementUpdated);
+    // Auto-sync queued offline requests upon reconnection
+    const handleOnline = async () => {
+      try {
+        const queued = await getQueuedRequests();
+        if (queued.length > 0) {
+          setSyncNotification({ message: `Reconnected: syncing ${queued.length} offline request(s)...`, type: 'syncing' });
+          const res = await drainOfflineQueue();
+          if (res.processed > 0) {
+            setSyncNotification({ message: `Sync complete: ${res.processed} offline request(s) processed.`, type: 'synced' });
+          } else if (res.failed > 0) {
+            setSyncNotification({ message: `Sync note: ${res.failed} request(s) could not be synced.`, type: 'synced' });
+          }
+          setTimeout(() => setSyncNotification(null), 5000);
+        }
+      } catch (err) {
+        console.warn('[Sync] Offline drain error:', err);
+      }
+    };
+
     window.addEventListener('nexus_kb_updated', handleKbUpdated);
     window.addEventListener('nexus_offline_queue_updated', handleQueueUpdated);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('nexus_network_status_changed', handleOnline);
 
     return () => {
-      window.removeEventListener('nexus_limits_updated', handleLimitsUpdated);
-      window.removeEventListener('nexus_entitlement_updated', handleEntitlementUpdated);
       window.removeEventListener('nexus_kb_updated', handleKbUpdated);
       window.removeEventListener('nexus_offline_queue_updated', handleQueueUpdated);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('nexus_network_status_changed', handleOnline);
     };
   }, []);
 
   const handleSelectAgent = (agent: AgentConfig, customPrompt?: string) => {
     if (agent.id === 'knowledge_base') {
       setActiveTab('knowledge');
-      return;
-    }
-    if (agent.tier === 'pro' && !isPro && !isDemoModeActive()) {
-      setPendingProAgent(agent);
-      setIsPaywallOpen(true);
       return;
     }
     setSelectedAgent(agent);
@@ -181,11 +179,6 @@ export default function App() {
 
   const handleReuseAsContext = (item: KnowledgeItem, targetAgentId?: string) => {
     const target = getAgentById(targetAgentId || item.agentId) || AGENTS[0];
-    if (target.tier === 'pro' && !isPro && !isDemoModeActive()) {
-      setPendingProAgent(target);
-      setIsPaywallOpen(true);
-      return;
-    }
     setSelectedAgent(target);
     setAttachedKbItem(item);
     setActiveTab('workspace');
@@ -198,21 +191,9 @@ export default function App() {
     setActiveTab('workspace');
   };
 
-  const handlePaywallSuccess = () => {
-    setIsPro(true);
-    setIsPaywallOpen(false);
-    if (pendingProAgent) {
-      setSelectedAgent(pendingProAgent);
-      setActiveWorkspacePrompt(pendingProAgent.sampleScenario?.fullPrompt || pendingProAgent.samplePrompts[0] || '');
-      setPendingProAgent(null);
-      setActiveTab('workspace');
-    }
-  };
-
   const filteredAgents = AGENTS.filter((agent) => {
-    if (agentFilter === 'free') return agent.tier === 'free';
-    if (agentFilter === 'pro') return agent.tier === 'pro';
-    return true;
+    if (agentCategoryFilter === 'all') return true;
+    return agent.category === agentCategoryFilter;
   });
 
   return (
@@ -228,11 +209,19 @@ export default function App() {
         </div>
       )}
 
+      {/* Reconnect Sync Status Banner */}
+      {syncNotification && (
+        <div
+          role="status"
+          className="bg-emerald-500 text-slate-950 font-bold text-xs py-2 px-4 text-center border-b border-emerald-600 flex items-center justify-center gap-2 tracking-wide shadow-sm"
+        >
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-slate-950" aria-hidden="true" />
+          <span>{syncNotification.message}</span>
+        </div>
+      )}
+
       {/* Top Header */}
       <Header
-        remainingGenerations={remainingGenerations}
-        isPro={isPro}
-        onOpenPaywall={() => setIsPaywallOpen(true)}
         onOpenAwsTab={() => setActiveTab('aws')}
         onOpenAlexaTab={() => setActiveTab('alexa')}
         onOpenWhoThisHelps={() => setIsWhoThisHelpsOpen(true)}
@@ -245,6 +234,10 @@ export default function App() {
         onOpenLegalModal={() => setIsLegalModalOpen(true)}
         onOpenSelfTest={() => setIsSelfTestOpen(true)}
         selectedModel={selectedModel}
+        configuredModelId={configuredModelId}
+        configuredRegion={configuredRegion}
+        bedrockConfigured={bedrockConfigured}
+        isSimulatedMode={isSimulatedMode}
       />
 
       {/* Main Content Area: Responsive at 360px+ */}
@@ -258,7 +251,7 @@ export default function App() {
                 <div className="flex items-center justify-between gap-1 flex-wrap">
                   <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-teal-500/15 border border-teal-500/30 text-teal-200 text-[10px] font-bold font-mono">
                     <Sparkles className="w-3 h-3 text-teal-300" aria-hidden="true" />
-                    <span>Amazon Bedrock &middot; MCP (2025-11-25)</span>
+                    <span>MCP (2025-11-25) &middot; Offline-First</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -280,10 +273,10 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setActiveTab('aws')}
-                      className="text-[11px] font-mono text-amber-300 hover:text-amber-200 flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-teal-400"
+                      className="text-[11px] font-mono text-slate-300 hover:text-white flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-teal-400"
                     >
-                      <Cloud className="w-3 h-3" aria-hidden="true" />
-                      <span>AWS</span>
+                      <Layers className="w-3 h-3 text-teal-400" aria-hidden="true" />
+                      <span>Architecture</span>
                     </button>
                   </div>
                 </div>
@@ -295,11 +288,11 @@ export default function App() {
                   Specialized social-impact AI agents for research synthesis, emergency humanitarian response, epidemiology, and donor proposals. Works online and offline.
                 </p>
 
-                {/* Free quota indicator & Judge demo banner */}
+                {/* Free quota indicator banner */}
                 <div className="pt-2 flex items-center justify-between text-[11px] text-slate-300 border-t border-[#2E3C62] gap-2 flex-wrap">
                   <span className="flex items-center gap-1.5 font-medium">
                     <span className="w-2 h-2 rounded-full bg-teal-400" />
-                    <span><strong className="text-white">All agents unlocked</strong></span>
+                    <span><strong className="text-white">All 7 Agents 100% Free &amp; Open Source</strong></span>
                   </span>
                   <button
                     type="button"
@@ -315,57 +308,41 @@ export default function App() {
 
             {/* Category Filter Pills (Large Touch Targets >= 44px) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
-              <button
-                type="button"
-                onClick={() => setAgentFilter('all')}
-                className={`min-h-[44px] px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
-                  agentFilter === 'all'
-                    ? 'bg-teal-500 text-slate-950 shadow-sm'
-                    : 'bg-[#1C2541] text-slate-200 hover:text-white border border-[#2E3C62]'
-                }`}
-              >
-                All 7 Agents
-              </button>
-              <button
-                type="button"
-                onClick={() => setAgentFilter('free')}
-                className={`min-h-[44px] px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
-                  agentFilter === 'free'
-                    ? 'bg-teal-500 text-slate-950 shadow-sm'
-                    : 'bg-[#1C2541] text-slate-200 hover:text-white border border-[#2E3C62]'
-                }`}
-              >
-                Free Tier (4)
-              </button>
-              <button
-                type="button"
-                onClick={() => setAgentFilter('pro')}
-                className={`min-h-[44px] px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer select-none flex items-center gap-1.5 ${
-                  agentFilter === 'pro'
-                    ? 'bg-amber-400 text-slate-950 shadow-sm'
-                    : 'bg-[#1C2541] text-slate-200 hover:text-white border border-[#2E3C62]'
-                }`}
-              >
-                <Crown className="w-3.5 h-3.5 fill-current" aria-hidden="true" />
-                <span>Pro Agents (3)</span>
-              </button>
+              {[
+                { id: 'all', label: 'All 7 Agents' },
+                { id: 'Crisis & Emergency', label: 'Crisis & Emergency' },
+                { id: 'Health & Wellbeing', label: 'Health & Wellbeing' },
+                { id: 'Evidence & Research', label: 'Evidence & Research' },
+                { id: 'Funding & Strategy', label: 'Funding & Strategy' },
+                { id: 'Rights & Advocacy', label: 'Rights & Advocacy' }
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setAgentCategoryFilter(cat.id)}
+                  className={`min-h-[44px] px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap cursor-pointer select-none ${
+                    agentCategoryFilter === cat.id
+                      ? 'bg-teal-500 text-slate-950 shadow-sm'
+                      : 'bg-[#1C2541] text-slate-200 hover:text-white border border-[#2E3C62]'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
             </div>
 
             {/* Agent Cards Grid with 1-Click Scenarios */}
             <div className="space-y-3">
-              {filteredAgents.map((agent) => {
-                const isLocked = agent.tier === 'pro' && !isPro && !isDemoModeActive();
-                return (
-                  <AgentCard
-                    key={agent.id}
-                    agent={agent}
-                    isLocked={isLocked}
-                    onSelect={(ag) => handleSelectAgent(ag)}
-                    onSelectPrompt={(ag, pr) => handleSelectAgent(ag, pr)}
-                    onRunSampleScenario={(ag) => handleRunSampleScenario(ag)}
-                  />
-                );
-              })}
+              {filteredAgents.map((agent) => (
+                <AgentCard
+                  key={agent.id}
+                  agent={agent}
+                  isLocked={false}
+                  onSelect={(ag) => handleSelectAgent(ag)}
+                  onSelectPrompt={(ag, pr) => handleSelectAgent(ag, pr)}
+                  onRunSampleScenario={(ag) => handleRunSampleScenario(ag)}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -374,7 +351,6 @@ export default function App() {
         {activeTab === 'workspace' && (
           <AgentWorkspace
             agent={selectedAgent}
-            isPro={isPro}
             initialPrompt={activeWorkspacePrompt}
             autoExecuteTrigger={autoExecuteTrigger}
             attachedKbItem={attachedKbItem}
@@ -382,10 +358,6 @@ export default function App() {
             selectedModel={selectedModel}
             onSelectModel={setSelectedModel}
             onBack={() => setActiveTab('agents')}
-            onOpenPaywall={() => {
-              setPendingProAgent(selectedAgent);
-              setIsPaywallOpen(true);
-            }}
             onSavedToKnowledgeBase={() => {
               setKnowledgeItems(getKnowledgeItems());
             }}
@@ -460,17 +432,6 @@ export default function App() {
         }}
       />
 
-      <PaywallModal
-        isOpen={isPaywallOpen}
-        onClose={() => {
-          setIsPaywallOpen(false);
-          setPendingProAgent(null);
-        }}
-        onSuccess={handlePaywallSuccess}
-        targetAgentName={pendingProAgent?.name}
-        isProActive={isPro}
-      />
-
       <OnDeviceModelModal
         isOpen={isOnDeviceModalOpen}
         onClose={() => setIsOnDeviceModalOpen(false)}
@@ -525,7 +486,6 @@ export default function App() {
         onChangeTab={(t) => setActiveTab(t)}
         knowledgeCount={knowledgeItems.length}
         hasActiveAgent={Boolean(selectedAgent)}
-        isPro={isPro}
         queuedRequestsCount={queuedRequestsCount}
       />
     </div>

@@ -227,16 +227,16 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
       } else {
         setMcpResult({
           status: 'success',
-          output: `[MCP Tool Result: ${activeMcpTool}]\nVerified parameter dispatch completed successfully. Dispatched payload:\n"${mcpInput.trim()}"\n\nOperational guidelines applied according to Sphere and WHO international protocols.`,
-          voiceSummary: `Tool ${activeMcpTool} executed with verified field indicators.`,
+          output: `[MCP Tool Result: ${activeMcpTool}]\nMCP parameter dispatch completed successfully. Dispatched payload:\n"${mcpInput.trim()}"\n\nOperational guidelines applied according to Sphere and WHO international protocols.`,
+          voiceSummary: `Tool ${activeMcpTool} executed with operational field indicators.`,
           durationMs: Date.now() - startTime
         });
       }
     } catch {
       setMcpResult({
         status: 'success',
-        output: `[MCP Tool Result: ${activeMcpTool}]\nVerified parameter dispatch completed successfully. Dispatched payload:\n"${mcpInput.trim()}"\n\nOperational guidelines applied according to Sphere and WHO international protocols.`,
-        voiceSummary: `Tool ${activeMcpTool} executed with verified field indicators.`,
+        output: `[MCP Tool Result: ${activeMcpTool}]\nMCP parameter dispatch completed successfully. Dispatched payload:\n"${mcpInput.trim()}"\n\nOperational guidelines applied according to Sphere and WHO international protocols.`,
+        voiceSummary: `Tool ${activeMcpTool} executed with operational field indicators.`,
         durationMs: Date.now() - startTime
       });
     } finally {
@@ -246,17 +246,28 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
 
   return (
     <div className="pb-28 pt-1 max-w-md w-full mx-auto space-y-3.5">
+      {/* Notice Banner */}
+      <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-xs text-amber-200 flex items-start gap-2.5">
+        <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="space-y-0.5">
+          <p className="font-bold text-amber-100">Live Status Notice</p>
+          <p className="text-[11px] leading-relaxed text-slate-200">
+            Bedrock integration is implemented in code but has not been run live. In this live demo, responses run in simulated mode without cloud AI.
+          </p>
+        </div>
+      </div>
+
       {/* Header */}
       <div className="space-y-1 px-1">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/15 border border-amber-400/30 text-amber-200 text-[10px] font-bold font-mono">
-          <Cloud className="w-3 h-3 text-amber-400" aria-hidden="true" />
-          <span>Amazon Developer Hackathon Architecture</span>
+        <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-cyan-400/15 border border-cyan-400/30 text-cyan-200 text-[10px] font-bold font-mono">
+          <Layers className="w-3 h-3 text-cyan-400" aria-hidden="true" />
+          <span>System &amp; MCP Architecture</span>
         </div>
         <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
-          <span>AWS Cloud &amp; MCP Infrastructure</span>
+          <span>Technical Architecture</span>
         </h1>
         <p className="text-xs text-slate-200 leading-relaxed">
-          Production implementation of Amazon Bedrock Converse API, Model Context Protocol (MCP), and S3 Document Vault.
+          Technical specifications for Bedrock Converse integration, Streamable HTTP Model Context Protocol (MCP), and local evidence vaulting.
         </p>
       </div>
 
@@ -367,7 +378,7 @@ export const AwsArchitectureTab: React.FC<AwsArchitectureTabProps> = ({
                 <div className="space-y-1">
                   <div className="font-bold">
                     {connectionTestResult.ok
-                      ? 'Live Bedrock Connection Verified'
+                      ? 'Live Bedrock Connection Confirmed'
                       : 'Bedrock Not Connected'}
                   </div>
                   <p className="text-[11px] text-slate-300">{connectionTestResult.message}</p>

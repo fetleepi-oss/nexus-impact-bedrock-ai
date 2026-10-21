@@ -1,6 +1,6 @@
 {
   "name": "Nexus Impact AI",
-  "description": "Mobile-first AI workspace with specialized agents for research, humanitarian response, public health, human rights, and donor proposals powered by Amazon Bedrock & MCP.",
+  "description": "Offline-first humanitarian AI agents with an MCP server. Private by design, no accounts, built for low-connectivity communities.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
