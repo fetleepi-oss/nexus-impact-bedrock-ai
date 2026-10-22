@@ -82,7 +82,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({ selectedModel }) =
     const agent = AGENTS.find(a => a.id === selectedAgentId);
     let md = `# Nexus Impact AI Evaluation Report: ${agent?.name || selectedAgentId}\n\n`;
     md += `**Date:** ${new Date().toISOString()}\n`;
-    md += `**Model Evaluated:** ${isOnline ? `Amazon Bedrock (${selectedModel})` : 'On-Device Model (Offline)'}\n`;
+    md += `**Model Evaluated:** ${isOnline ? `Online (${selectedModel || 'Simulated'})` : 'On-Device Model (Offline)'}\n`;
     md += `**Executed:** ${executedCount} | **Passed:** ${passedCount} (${passRate}%) | **Partial:** ${partialCount} | **Failed:** ${failedCount}\n\n`;
     md += `> **Evaluation Methodology:** Evaluates model output against strict empirical rubric points (Sphere quantities, clinical protocols, treaty articles). Quality is measured directly, never claimed.\n\n`;
 
@@ -107,7 +107,7 @@ export const EvaluationTab: React.FC<EvaluationTabProps> = ({ selectedModel }) =
               <span>Rigorous Empirical Rubric Suite</span>
             </span>
             <span className="text-[10px] font-mono text-slate-300">
-              {isOnline ? 'Online (Bedrock)' : 'Offline (On-Device)'}
+              {isOnline ? 'Online' : 'Offline (On-Device)'}
             </span>
           </div>
           <h1 className="text-lg font-black tracking-tight text-white flex items-center gap-2">

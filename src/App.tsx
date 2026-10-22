@@ -205,7 +205,7 @@ export default function App() {
           className="bg-amber-500 text-slate-950 font-bold text-xs py-2 px-4 text-center border-b border-amber-600 flex items-center justify-center gap-2 tracking-wide shadow-sm"
         >
           <AlertTriangle className="w-4 h-4 shrink-0 text-slate-950" aria-hidden="true" />
-          <span>Simulated mode is ON (testing only)</span>
+          <span>Simulated mode: answers come from a bundled knowledge pack, no cloud AI</span>
         </div>
       )}
 

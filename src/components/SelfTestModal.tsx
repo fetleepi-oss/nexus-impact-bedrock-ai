@@ -64,10 +64,10 @@ export const SelfTestModal: React.FC<SelfTestModalProps> = ({ isOpen, onClose })
     },
     {
       id: 'bedrock_api',
-      name: 'Amazon Bedrock Server Connectivity & /api/health',
+      name: 'Server Connectivity & /api/health',
       category: 'bedrock',
       status: 'pending',
-      message: 'Probes server-side Bedrock proxy without leaking AWS keys to browser.'
+      message: 'Probes server-side health and cloud status without leaking keys to browser.'
     },
     {
       id: 'mcp_protocol',

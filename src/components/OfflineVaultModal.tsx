@@ -101,7 +101,7 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
 
   const handleReRunSingle = async (requestId: string) => {
     if (!isAppOnline()) {
-      setReRunMessage('Cannot re-run with Bedrock while offline. Please toggle online mode first.');
+      setReRunMessage('Cannot re-run while offline. Please toggle online mode first.');
       return;
     }
     setReRunningId(requestId);
@@ -109,10 +109,10 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
     const result = await reRunSingleQueuedRequest(requestId);
     setReRunningId(null);
     if (result.success) {
-      setReRunMessage('Successfully re-run with Amazon Bedrock! Result saved to Archive.');
+      setReRunMessage('Successfully re-run! Result saved to Archive.');
       loadData();
     } else {
-      setReRunMessage(result.error || 'Failed to re-run request with Bedrock');
+      setReRunMessage(result.error || 'Failed to re-run request online');
     }
   };
 
@@ -125,7 +125,7 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
     setReRunMessage(null);
     const result = await drainOfflineQueue();
     setIsDraining(false);
-    setReRunMessage(`Processed ${result.processed} requests with Amazon Bedrock.`);
+    setReRunMessage(`Processed ${result.processed} requests online.`);
     loadData();
   };
 
@@ -344,7 +344,7 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                             </span>
                           ) : item.usedRealBedrock ? (
                             <span className="text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded border bg-teal-500/20 border-teal-500/40 text-teal-300">
-                              Bedrock
+                              Online
                             </span>
                           ) : (
                             <span className="text-[9px] font-bold font-mono uppercase px-1.5 py-0.5 rounded border bg-blue-500/20 border-blue-500/40 text-blue-300">
@@ -387,11 +387,11 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                       <div className="flex items-center gap-2">
                         {Boolean(selectedOutput.isSimulated || selectedOutput.model?.includes('SIMULATED') || selectedOutput.output?.includes('[SIMULATED')) ? (
                           <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-500/50 text-amber-300">
-                            SIMULATED, not from Amazon Bedrock
+                            SIMULATED, not from cloud AI
                           </span>
                         ) : selectedOutput.usedRealBedrock ? (
                           <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-teal-500/20 border border-teal-500/40 text-teal-200">
-                            Amazon Bedrock ({selectedOutput.model})
+                            Online ({selectedOutput.model || 'Cloud'})
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-full bg-blue-500/20 border border-blue-500/40 text-blue-200">
@@ -451,7 +451,7 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                   </span>
                 </h3>
                 <p className="text-xs text-slate-300 mt-0.5">
-                  Requests created offline that can be re-run with Amazon Bedrock for full cloud accuracy
+                  Requests created offline that can be re-run online when connectivity is restored
                 </p>
               </div>
               <button
@@ -492,7 +492,7 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2E3C62]/60 pb-2.5">
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-teal-300">
-                          {req.agentName}
+                           {req.agentName}
                         </span>
                         <span className="text-slate-500">&middot;</span>
                         <span className="text-[10px] font-mono text-slate-400">
@@ -509,12 +509,12 @@ export const OfflineVaultModal: React.FC<OfflineVaultModalProps> = ({
                           {reRunningId === req.id ? (
                             <>
                               <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                              <span>Calling Bedrock...</span>
+                              <span>Re-running...</span>
                             </>
                           ) : (
                             <>
                               <Cloud className="w-3.5 h-3.5" />
-                              <span>Re-run Cloud</span>
+                              <span>Re-run Online</span>
                             </>
                           )}
                         </button>

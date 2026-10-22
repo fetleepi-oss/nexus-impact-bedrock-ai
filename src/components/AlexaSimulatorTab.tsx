@@ -538,7 +538,7 @@ export const AlexaSimulatorTab: React.FC = () => {
                     </span>
                   ) : selectedLog?.responsePayload?.result?._meta?.usedRealBedrock ? (
                     <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-teal-500/20 text-teal-300 border border-teal-500/40">
-                      Amazon Bedrock
+                      Online
                     </span>
                   ) : (
                     <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">

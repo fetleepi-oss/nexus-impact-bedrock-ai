@@ -321,7 +321,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
           res.statusCode = 429;
           return res.end(JSON.stringify({
             success: false,
-            error: 'demo capacity reached, try again tomorrow',
+            error: 'daily capacity reached, try again tomorrow',
             errorCode: 'DAILY_CAP_REACHED'
           }));
         }
@@ -407,7 +407,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
         if (!globalCapCheck.allowed) {
           res.setHeader('Content-Type', 'application/json');
           res.statusCode = 429;
-          return res.end(JSON.stringify({ status: 'error', error: 'demo capacity reached, try again tomorrow' }));
+          return res.end(JSON.stringify({ status: 'error', error: 'daily capacity reached, try again tomorrow' }));
         }
 
         const bedrockResult = await invokeBedrock({
@@ -572,7 +572,7 @@ export function handleServerApi(req: any, res: any, next?: any): boolean {
           if (!globalCapCheck.allowed) {
             return res.end(JSON.stringify({
               jsonrpc: '2.0',
-              error: { code: -32000, message: 'demo capacity reached, try again tomorrow' },
+              error: { code: -32000, message: 'daily capacity reached, try again tomorrow' },
               id: id ?? null
             }));
           }

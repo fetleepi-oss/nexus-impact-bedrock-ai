@@ -158,7 +158,7 @@ export const AgentCard: React.FC<AgentCardProps> = ({
       <div className="pt-2 border-t border-[#2E3C62] flex items-center justify-between text-xs gap-2">
         <span className="text-[11px] text-teal-300 font-medium truncate flex items-center gap-1">
           <CheckCircle2 className="w-3 h-3 text-teal-400" aria-hidden="true" />
-          <span>Ready to run &middot; Free</span>
+          <span>Ready to run &middot; Open Access</span>
         </span>
         <button
           type="button"

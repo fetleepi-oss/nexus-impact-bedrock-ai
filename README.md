@@ -99,8 +99,8 @@ npm run dev
 
 | Variable | Description | Default | Required? |
 |:---|:---|:---:|:---:|
-| `UNLOCK_ALL_AGENTS` | Unlocks all 7 Pro agents and bypasses tier paywalls | `true` | Recommended |
-| `ALLOW_SIMULATED_RESPONSES` | When false (default), missing/failed Bedrock returns a clear setup error. Must be false for production and judging. If true (testing only), returns answers with a visible SIMULATED badge | `false` | Production: False |
+| `UNLOCK_ALL_AGENTS` | Unlocks all 7 specialized agents | `true` | Recommended |
+| `ALLOW_SIMULATED_RESPONSES` | When false (default), missing cloud credentials returns a setup notice. If true, returns answers using the bundled humanitarian knowledge pack | `false` | Production: False |
 | `BEDROCK_MODEL_ID` | Amazon Bedrock Model or Inference Profile ID (e.g. `us.anthropic.claude-3-5-sonnet-20241022-v2:0`) | `""` | Required for Cloud |
 | `AWS_REGION` | AWS Region for Amazon Bedrock API calls | `us-east-1` | Optional |
 | `AWS_ACCESS_KEY_ID` | AWS IAM Access Key ID (Server-Side Only) | `""` | Required for Cloud |

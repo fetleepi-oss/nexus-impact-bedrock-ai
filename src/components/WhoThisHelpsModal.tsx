@@ -52,7 +52,7 @@ export const WhoThisHelpsModal: React.FC<WhoThisHelpsModalProps> = ({
         painPoint: 'Delayed decision-making during fast-moving outbreaks; critical evidence stuck in academic silos.',
       },
       after: {
-        time: '< 30 seconds to initial structured synthesis [Measured: Bedrock inference & table structuring]',
+        time: '< 30 seconds to initial structured synthesis [Measured: Structured synthesis & table structuring]',
         workflow: 'Inputs research question and region into Nexus Research Synthesizer. Immediately receives a structured 5-column Evidence Matrix, quality grading, and operational feasibility notes.',
         impact: 'Frontline health workers receive policy-backed retention programs weeks faster; evidence-informed operational deployment.',
       },
@@ -71,7 +71,7 @@ export const WhoThisHelpsModal: React.FC<WhoThisHelpsModalProps> = ({
         painPoint: 'Severe cognitive load and human error in life-or-death water allocation decisions; fragmented inter-agency staging.',
       },
       after: {
-        time: '< 30 seconds for complete Sphere-compliant framework [Measured: Sphere calculation & Bedrock execution]',
+        time: '< 30 seconds for complete Sphere-compliant framework [Measured: Sphere calculation & execution]',
         workflow: 'Enters population size and crisis type into Nexus Humanitarian Agent (or speaks into Alexa+). Receives exact Sphere standard water volume targets, 72-hour operational staging timeline, and vulnerable group safeguards.',
         impact: 'Zero calculation errors; water tankers deployed to high-risk zones within hours instead of days.',
       },
@@ -90,7 +90,7 @@ export const WhoThisHelpsModal: React.FC<WhoThisHelpsModalProps> = ({
         painPoint: 'High-performing grassroots teams lose funding to multinational consulting firms solely due to bureaucratic proposal barriers.',
       },
       after: {
-        time: '< 30 seconds for complete 7-section donor draft [Measured: Bedrock structured generation]',
+        time: '< 30 seconds for complete 7-section donor draft [Measured: Structured generation]',
         workflow: 'Selects donor template (USAID BHA, ECHO, Global Fund), inputs project focus, and generates a donor-grade 7-section proposal: Problem Statement, Logframe with baseline & verification means, MEAL Plan, Budget Narrative, and Risk Matrix.',
         impact: 'Grassroots organizations double their grant application throughput and secure catalytic funding directly for affected communities.',
       },

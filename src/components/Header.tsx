@@ -127,7 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
   const modeHeaderLabel = !isOnline
     ? 'On-device (offline, lower accuracy)'
     : isBedrockActive
-      ? `Amazon Bedrock (${activeModelId})`
+      ? 'Online'
       : 'Simulated mode (no cloud AI)';
 
   useEffect(() => {
@@ -444,7 +444,7 @@ export const Header: React.FC<HeaderProps> = ({
               {!isOnline
                 ? 'Offline mode never leaves this device (on-device local execution)'
                 : isBedrockActive
-                  ? `Online requests are processed by Amazon Bedrock (${activeModelId}). This app does not log prompt text.`
+                  ? 'Online requests active. This app does not log prompt text.'
                   : 'Simulated answers from a bundled knowledge pack. No cloud AI is used. This app does not log prompt text.'}
             </span>
           </span>

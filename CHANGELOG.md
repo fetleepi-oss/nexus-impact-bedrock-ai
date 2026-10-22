@@ -81,7 +81,7 @@ All notable changes made during the **Amazon Developer Hackathon Window (October
   - Built interactive **Alexa+ Voice Simulator** in the web app featuring Web Speech API speech-to-text, browser SpeechSynthesis spoken playback, and a live JSON-RPC 2.0 call log inspector showing request/response headers, payloads, and millisecond latencies.
   - Created automated MCP conformance testing (`runConformanceTest`) validating SSE handshakes, tools discovery, and execution.
 
-- **AWS Builder Mini Challenge: Amazon Bedrock Converse API**
+- **Amazon Bedrock Converse API Architecture**
   - Shifted all model inference to server-side routes, reading credentials strictly from environment variables (`AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `BEDROCK_MODEL_ID`).
   - Zero AWS keys or credentials exposed to client bundles.
   - Granular classification for `ThrottlingException`, `AccessDeniedException`, and missing credentials with human-readable guidance.
@@ -92,7 +92,7 @@ All notable changes made during the **Amazon Developer Hackathon Window (October
   - Integrated Service Worker (`public/sw.js`) and Web App Manifest for full PWA installability.
   - Implemented IndexedDB local storage (`src/offlineStorage.ts`) with stores for cached outputs and offline request queues.
   - Added honest offline labeling: disconnected outputs are explicitly flagged with `"On-device (offline, lower accuracy)"`, never presented as live Bedrock output.
-  - Implemented 1-click **Simulate Offline Mode** toggle in the header for judges to test disconnected behavior without pulling cables.
+  - Implemented 1-click **Simulate Offline Mode** toggle in the header to test disconnected behavior without pulling cables.
   - Implemented auto-drain queue logic that flushes pending requests to Bedrock when connectivity is restored.
 
 - **Quality & Empirical Evaluations**

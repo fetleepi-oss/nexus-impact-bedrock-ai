@@ -805,7 +805,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
     const sourceLabel = generationMeta?.isSimulated || output?.includes('[SIMULATED')
       ? 'SIMULATED'
       : generationMeta?.usedRealBedrock
-        ? `Amazon Bedrock (${generationMeta.model || selectedModel || 'configured model'})`
+        ? 'Online'
         : generationMeta?.isOfflineCached
           ? 'Offline knowledge pack'
           : generationMeta?.isOfflineOnDevice
@@ -981,7 +981,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
 
       let outputText = '';
       let usedRealBedrock = false;
-      let modelLabel = 'Cloud (Bedrock)';
+      let modelLabel = 'Online';
       let isOfflineOnDevice = false;
 
       // 2. Strict On-Device Check: If user toggled 'keep everything on this device' or offline
@@ -1013,12 +1013,12 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             modelLabel = data.model || selectedModel;
             trackDataUsage(promptToSend.length + data.output.length);
           } else if (data && !data.success && data.error) {
-            setErrorMsg(`Amazon Bedrock Notice (${data.errorCode === 'MISSING_AWS_CREDENTIALS' ? 'Credentials Not Set' : 'Inference Error'}): ${data.error}`);
+            setErrorMsg(`Inference Notice (${data.errorCode === 'MISSING_AWS_CREDENTIALS' ? 'Credentials Not Set' : 'Inference Error'}): ${data.error}`);
             setOutput(null);
             setIsGenerating(false);
             return;
           } else {
-            setErrorMsg('Unable to reach Amazon Bedrock server endpoint. Please verify server status on the Technical page or switch to On-device (offline) mode.');
+            setErrorMsg('Unable to reach server endpoint. Please verify server status on the Architecture page or switch to On-device (offline) mode.');
             setOutput(null);
             setIsGenerating(false);
             return;
@@ -1061,7 +1061,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
         promptCharCount: promptToSend.length,
         model: modelLabel,
         latencyMs: durationMs,
-        networkState: isOfflineOnDevice ? 'Offline (On-Device)' : 'Online (Bedrock)',
+        networkState: isOfflineOnDevice ? 'Offline (On-Device)' : 'Online',
         guardrailFired: redactionResult.wasRedacted ? `PII Redacted: ${redactionResult.redactions.length} items` : 'None - Compliant',
         redactedItemsCount: redactionResult.redactions.length,
         language: activeLang,
@@ -1334,7 +1334,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
                 Keep everything on this device
               </span>
               <span className="text-[10px] text-teal-200 block truncate font-mono">
-                {keepOnDeviceOnly ? 'Active: Never calls cloud server' : 'Off: Cloud Bedrock enabled (redacted)'}
+                {keepOnDeviceOnly ? 'Active: Never calls cloud server' : 'Off: Online mode enabled (redacted)'}
               </span>
             </div>
           </label>
@@ -1918,9 +1918,9 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
             <p className="text-xs mt-1">
               <strong>Source:</strong> {
                 generationMeta?.isSimulated || output?.includes('[SIMULATED')
-                  ? 'SIMULATED, not from Amazon Bedrock'
+                  ? 'SIMULATED, not from cloud AI'
                   : generationMeta?.usedRealBedrock
-                    ? `Amazon Bedrock (${generationMeta.model || selectedModel || 'configured model'})`
+                    ? 'Online'
                     : generationMeta?.isOfflineCached
                       ? 'Offline knowledge pack'
                       : generationMeta?.isOfflineOnDevice
@@ -1939,7 +1939,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
                   <h2 className="text-xs font-bold uppercase tracking-wider text-white">
                     {agent.name} Output
                   </h2>
-                  {/* Explicit Source Badge: Amazon Bedrock (model ID), On-device, Offline knowledge pack, or SIMULATED */}
+                  {/* Explicit Source Badge: Online, On-device, Offline knowledge pack, or SIMULATED */}
                   {generationMeta?.isSimulated || output?.includes('[SIMULATED') ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/50 text-[10px] font-mono font-black uppercase tracking-wider">
                       <AlertTriangle className="w-3 h-3 text-amber-400" />
@@ -1947,7 +1947,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
                     </span>
                   ) : generationMeta?.usedRealBedrock ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[10px] font-mono font-bold">
-                      <span>Amazon Bedrock ({generationMeta.model || selectedModel || 'configured model'})</span>
+                      <span>Online</span>
                     </span>
                   ) : generationMeta?.isOfflineCached ? (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/40 text-[10px] font-mono font-bold">
@@ -2127,7 +2127,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           generationMeta?.isSimulated || output?.includes('[SIMULATED')
             ? 'SIMULATED'
             : generationMeta?.usedRealBedrock
-              ? `Amazon Bedrock (${generationMeta.model || selectedModel || 'configured model'})`
+              ? 'Online'
               : generationMeta?.isOfflineCached
                 ? 'Offline knowledge pack'
                 : generationMeta?.isOfflineOnDevice
@@ -2138,7 +2138,7 @@ export const AgentWorkspace: React.FC<AgentWorkspaceProps> = ({
           generationMeta?.isSimulated || output?.includes('[SIMULATED')
             ? 'SIMULATED'
             : generationMeta?.usedRealBedrock
-              ? `Amazon Bedrock (${generationMeta.model || selectedModel})`
+              ? 'Online'
               : generationMeta?.isOfflineCached
                 ? 'Offline knowledge pack'
                 : 'On-Device'
